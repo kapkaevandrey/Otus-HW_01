@@ -6,11 +6,13 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
     "cryptography>=46.0.5",
     "fastapi>=0.134.0",
     "pydantic-settings>=2.13.1",
     "pyjwt>=2.11.0",
     "python-json-logger>=4.0.0",
+    "uvicorn[standart]>=0.41.0",
 ]
 
 [dependency-groups]
@@ -21,3 +23,80 @@ dev = [
     "pytest>=9.0.2",
     "ruff>=0.15.4",
 ]
+
+
+[tool.pytest.ini_options]
+addopts = "--color=yes -p no:cacheprovider"
+console_output_style = "progress"
+asyncio_mode = "auto"
+testpaths = ["./tests/"]
+python_files = ["test_*.py", "tests.py", "*_test.py"]
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+fix = true
+unsafe-fixes = true
+exclude = [
+    ".git", ".hg", ".mypy_cache", ".tox", ".venv", "venv",
+    "_build", "buck-out", "build", "dist", "proto", "migrations", "metrics.py"
+]
+
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle
+    "F", # pyflakes
+    "I", # isort (сортировка импортов)
+    "N", # pep8-naming
+    "UP", # pyupgrade
+    "B", # bugbear
+    "C4", # comprehensions
+    "SIM", # simplify
+    "TID", # tidy imports
+]
+ignore = [
+    "D100", "D101", "D102", "D103"
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/api/**/*.py" = ["B008"] # Для игнорирования тайпинга context: Context = Depends(get_context)
+"app/translations/middleware_I18n.py" = ["N999"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-third-party = []
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+lines-after-imports = 2
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+follow_imports = "silent"
+pretty = true
+exclude = "(venv|tests|migrations*)/$"
+
+disallow_incomplete_defs = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+init_typed = true
+
+[tool.setuptools]
+packages = ["app"]
