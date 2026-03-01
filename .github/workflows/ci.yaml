@@ -11,13 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEBUG: "true"
-      DB_HOST: "db"
+      DB_HOST: "localhost"
       DB_DATABASE: "otus"
       DB_USER: "otus"
       DB_PASSWORD: "app_pswd"
       DB_PORT: "5432"
     services:
-      db:
+      postgres:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: "app_pswd"
