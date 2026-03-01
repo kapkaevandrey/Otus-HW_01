@@ -9,6 +9,27 @@ on:
 jobs:
   lint_and_type:
     runs-on: ubuntu-latest
+    env:
+      DEBUG: "true"
+      DB_HOST: "db"
+      DB_DATABASE: "otus"
+      DB_USER: "otus"
+      DB_PASSWORD: "app_pswd"
+      DB_PORT: "5432"
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: "app_pswd"
+          POSTGRES_USER: "otus"
+          POSTGRES_DB: "otus"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U otus -d otus_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     strategy:
       matrix:
         python-version: [3.14]
@@ -38,3 +59,13 @@ jobs:
     - name: Run mypy type checks
       run: |
         uv run mypy app
+
+    - name: Run tests
+      run: |
+        uv run pytest --cov=app --cov-report=xml
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@master
+      with:
+        name: coverage-report
+        path: coverage.xml
