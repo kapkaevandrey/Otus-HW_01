@@ -46,6 +46,7 @@ def get_app(app_name: str, lifespan: Callable) -> FastAPI:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     context = get_context()
+    await context.start_clients()
     yield
     await context.stop_clients()
 

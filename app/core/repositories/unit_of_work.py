@@ -8,8 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
 
-
-ModelName = str
+from .repos import BaseRepository, UserRepo, UserTokenRepo
 
 
 class UnitOfWork:
@@ -17,17 +16,30 @@ class UnitOfWork:
         self.db_client = db_client
         self._logger = logging.getLogger(__name__)
         self._session: AsyncSession | None = None
+        self._user_repo = UserRepo(db_client)
+        self._token_repo = UserTokenRepo(db_client)
 
     @property
-    def repositories(self) -> list[str]:
-        return []
+    def repositories(self) -> list[BaseRepository]:
+        return [
+            self._user_repo,
+            self._token_repo,
+        ]
+
+    @property
+    def user_repo(self) -> UserRepo:
+        return self._user_repo
+
+    @property
+    def token_repo(self) -> UserTokenRepo:
+        return self._token_repo
 
     @property
     def logger(self) -> Logger:
         return self._logger
 
     @asynccontextmanager
-    async def transaction(self, transaction_context: dict | None = None) -> AsyncGenerator["UnitOfWork"]:
+    async def transaction(self, transaction_context: dict | None = None) -> AsyncGenerator[UnitOfWork]:
         transaction_id = str(uuid4())
         transaction_context = transaction_context or {}
         transaction_context["transaction_id"] = transaction_id

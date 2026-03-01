@@ -25,13 +25,5 @@ class BaseServiceError(Exception):
         super().__init__()
 
 
-class DatabaseException(Exception):
+class DatabaseError(Exception):
     pass
-
-
-class DatabaseInstanceNotFoundError(DatabaseException):
-    """Exception, which is raised when instance in database not founded"""
-
-
-class DatabaseMultipleResultsFoundError(DatabaseException):
-    """Exception, when request returns more than one row"""

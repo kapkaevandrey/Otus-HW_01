@@ -1,22 +1,25 @@
 from collections.abc import Awaitable, Callable
 from logging import Logger, getLogger
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+from starlette import status
 
 from app.exceptions import BaseServiceError
 from app.schemas.services import BaseServiceResponse
 
+from app.core.containers import Context
 
-if TYPE_CHECKING:
-    from app.core.containers import Context
+
+logger = getLogger(__name__)
 
 
 class BaseService:
-    def __init__(self, context: "Context", logger: Logger | None = None):
+    def __init__(self, context: Context, logger: Logger | None = None):
         self._context = context
         self._logger = logger or getLogger(__name__)
 
     @property
-    def context(self) -> "Context":
+    def context(self) -> Context:
         return self._context
 
     @property
@@ -34,6 +37,12 @@ def async_use_case(
                 return await func(*args, **kwargs)
             except BaseServiceError as e:
                 base_response.set_unsuccessful_from_error(e)
+            except Exception as e:
+                logger.exception(e)
+                base_response.set_unsuccessful(
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    error_message="Internal Server Error",
+                )
             return base_response
 
         return wrapper

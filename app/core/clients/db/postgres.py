@@ -15,7 +15,7 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_settings(cls, settings: DbSettings) -> "SQLAlchemyAsyncPgClient":
+    def from_settings(cls, settings: DbSettings) -> SQLAlchemyAsyncPgClient:
         connect_args = {"server_settings": {"application_name": os.uname().nodename}}
         if settings.DB_ENABLE_PG_BOUNCER:
             connect_args["statement_cache_size"] = 0  # type: ignore

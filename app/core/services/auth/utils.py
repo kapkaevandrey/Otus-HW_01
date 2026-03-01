@@ -22,15 +22,15 @@ class AuthUtils(ServiceUtils):
         return (bcrypt.hashpw(password.encode(), bcrypt.gensalt())).decode()
 
     def check_password(self, password: str, hashed_password: str) -> None:
-        if self.get_hash_password(password) != hashed_password:
+        if not bcrypt.checkpw(password.encode(), hashed_password.encode()):
             raise BaseServiceError(
                 status=HTTPStatus.BAD_REQUEST,
-                error_message="Password mismatch",
+                error_message=self.PASSWORD_MISMATCH_ERROR,
             )
 
     @staticmethod
     async def get_or_update_user_token(user_id: UUID, scope: ScopeType, uow: UnitOfWork) -> UserTokenDto:
-        user_token = await uow.token_repo.get({"id": user_id})
+        user_token = await uow.token_repo.get_by_user_id(user_id=user_id)
         if not user_token:
             user_token = await uow.token_repo.add(
                 UserTokenCreateSchema(token=uuid4(), scope=scope, user_id=user_id, user_type=UserType.USER)

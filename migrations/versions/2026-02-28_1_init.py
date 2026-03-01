@@ -19,7 +19,7 @@ depends_on = None
 def upgrade():
     op.execute("""
     CREATE TABLE users (
-        id UUID PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         first_name VARCHAR(255) NOT NULL,
         second_name VARCHAR(255) NOT NULL,
         birthdate DATE NOT NULL,
@@ -32,7 +32,7 @@ def upgrade():
     op.execute("""
     CREATE TABLE user_tokens (
         user_id UUID NOT NULL,
-        token UUID PRIMARY KEY,
+        token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         scope VARCHAR(255),
         user_type VARCHAR(255),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
