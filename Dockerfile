@@ -19,8 +19,6 @@ COPY --from=builder /code/.venv /code/.venv
 ENV PATH="/code/.venv/bin:${PATH}"
 COPY . .
 RUN uv sync --frozen --group dev
-
-USER runner
 EXPOSE 8000
 ENTRYPOINT ["/code/docker-entrypoint.sh"]
 
@@ -30,13 +28,6 @@ COPY --from=builder /code/.venv /code/.venv
 ENV PATH="/code/.venv/bin:${PATH}"
 COPY app ./app
 COPY docker-entrypoint.sh /code/docker-entrypoint.sh
-
 RUN chmod +x /code/docker-entrypoint.sh
-
-RUN chown -R runner:root /code \
-    && chmod -R g=u /code \
-    && chmod -R g=u /home
-
-USER runner
 EXPOSE 8000
 ENTRYPOINT ["/code/docker-entrypoint.sh"]
