@@ -1,11 +1,9 @@
-version: "3"
-
 services:
   app:
     build:
       context: .
       dockerfile: ./Dockerfile
-        - ENVIRONMENT=dev
+      target: dev
     restart: always
     environment:
       ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030"
@@ -22,7 +20,7 @@ services:
         condition: service_healthy
 
   db:
-    container_name: video_content_db
+    container_name: db
     image: postgres:13
     restart: always
     ports:

@@ -15,7 +15,6 @@ RUN uv sync --frozen --no-dev
 
 # ========= Dev (локальная разработка) =========
 FROM base AS dev
-COPY --from=builder /code/.venv /code/.venv
 ENV PATH="/code/.venv/bin:${PATH}"
 COPY . .
 RUN uv sync --frozen --group dev

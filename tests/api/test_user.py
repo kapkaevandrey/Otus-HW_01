@@ -24,13 +24,14 @@ async def test_create_user(client: AsyncClient):
 async def test_create_user_wrong_password(client: AsyncClient):
     url = app.url_path_for("register_user")
     response = await client.post(
-        url, json={
+        url,
+        json={
             "first_name": "John",
             "second_name": "Doe",
             "birthdate": "1990-01-01",
             "city": "New York",
             "password": "q",
-        }
+        },
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 

@@ -4,10 +4,9 @@ from typing import Any
 
 from starlette import status
 
+from app.core.containers import Context
 from app.exceptions import BaseServiceError
 from app.schemas.services import BaseServiceResponse
-
-from app.core.containers import Context
 
 
 logger = getLogger(__name__)
