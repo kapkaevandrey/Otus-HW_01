@@ -21,7 +21,7 @@ services:
 
   db:
     container_name: db
-    image: postgres:13
+    image: postgres:15
     restart: always
     ports:
       - "5432:5432"
