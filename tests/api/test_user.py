@@ -46,3 +46,9 @@ async def test_get_user(client: AsyncClient, user_one):
     url = app.url_path_for("get_user", user_id=str(user_one.id))
     response = await client.get(url)
     assert response.status_code == HTTPStatus.OK
+
+
+async def test_search_users(client: AsyncClient, user_one):
+    url = app.url_path_for("search_users")
+    response = await client.get(url, params={"first_name": "John", "last_name": "Doe"})
+    assert response.status_code == HTTPStatus.OK

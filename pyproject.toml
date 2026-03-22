@@ -30,14 +30,12 @@ dev = [
     "ruff>=0.15.4",
 ]
 
-
 [tool.pytest.ini_options]
 addopts = "--color=yes -p no:cacheprovider"
 console_output_style = "progress"
 asyncio_mode = "auto"
 testpaths = ["./tests/"]
 python_files = ["test_*.py", "tests.py", "*_test.py"]
-
 
 [tool.ruff]
 line-length = 120

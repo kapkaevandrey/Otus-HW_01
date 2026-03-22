@@ -2,8 +2,6 @@ from collections.abc import Awaitable, Callable
 from logging import Logger, getLogger
 from typing import Any
 
-from starlette import status
-
 from app.core.containers import Context
 from app.exceptions import BaseServiceError
 from app.schemas.services import BaseServiceResponse
@@ -36,12 +34,12 @@ def async_use_case(
                 return await func(*args, **kwargs)
             except BaseServiceError as e:
                 base_response.set_unsuccessful_from_error(e)
-            except Exception as e:
-                logger.exception(e)
-                base_response.set_unsuccessful(
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    error_message="Internal Server Error",
-                )
+            # except Exception as e:
+            #     logger.exception(e, exc_info=e)
+            #     base_response.set_unsuccessful(
+            #         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            #         error_message="Internal Server Error",
+            #     )
             return base_response
 
         return wrapper

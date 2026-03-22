@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from uuid import uuid4
 
@@ -16,9 +15,9 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
 
     @classmethod
     def from_settings(cls, settings: DbSettings) -> SQLAlchemyAsyncPgClient:
-        connect_args = {"server_settings": {"application_name": os.uname().nodename}}
+        connect_args = {}
         if settings.DB_ENABLE_PG_BOUNCER:
-            connect_args["statement_cache_size"] = 0  # type: ignore
+            connect_args["statement_cache_size"] = 0
             connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"  # type: ignore
         return cls(
             host=settings.DB_HOST,

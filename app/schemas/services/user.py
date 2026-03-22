@@ -39,6 +39,23 @@ class LoginUserData(EmptyBaseSchema):
     password: str
 
 
+class RefreshUserToken(EmptyBaseSchema):
+    id: UUID
+    password: str
+
+
+class TokenSchema(EmptyBaseSchema):
+    type: str
+    scope: str
+    token: str
+    exp: int
+
+
+class AccessRefreshServiceResponse(EmptyBaseSchema):
+    access_token: TokenSchema
+    refresh_token: TokenSchema
+
+
 class AuthUserServiceResponse(EmptyBaseSchema):
     token: UUID
 

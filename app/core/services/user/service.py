@@ -54,3 +54,13 @@ class UserService(BaseService):
             token = await auth_utils.get_or_update_user_token(user_id, ScopeType.ACCESS, uow)
             response.result = AuthUserServiceResponse(token=token.token)
         return response
+
+    @async_use_case()
+    async def search_users(
+        self, first_name: str, second_name: str
+    ) -> BaseServiceResponse[list[GetUserServiceResponse]]:
+        response = BaseServiceResponse[list[GetUserServiceResponse]]()
+        async with self.context.uow.transaction() as uow:
+            dtos = await uow.user_repo.search_by_first_name_last_name(first_name, second_name)
+            response.result = [GetUserServiceResponse.model_validate(dto) for dto in dtos]
+        return response

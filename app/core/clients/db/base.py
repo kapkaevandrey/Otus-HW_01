@@ -1,10 +1,9 @@
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from logging import Logger, getLogger
 from typing import Any
 
-from sqlalchemy import Executable, Result, Row, RowMapping, text
+from sqlalchemy import Executable, Result, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.exceptions import DatabaseError
@@ -56,11 +55,11 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
     async def execute_stmt(
         self,
         query: str,
-        params: list[dict] | dict | None = None,
+        params: dict | None = None,
         external_session: AsyncSession | None = None,
         commit: bool = True,
         mapped: bool = True,
-        only_one: bool = True,
+        only_one: bool = False,
         need_result: bool = True,
         tries: int = 3,
         delay: float = 0.2,
@@ -100,16 +99,21 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
         raise DatabaseError(self.DB_ERROR_MESSAGE.format(exc=exception)) from exception
 
     @staticmethod
-    def _collect_result_from_proxy(proxy_result: Result, mapped: bool, only_one: bool) -> Any:
-        result: RowMapping | Row | Sequence[RowMapping] | Sequence[Row] | None = None
+    def _collect_result_from_proxy(
+        proxy_result: Result, mapped: bool, only_one: bool
+    ) -> list[tuple] | list[dict] | dict | tuple | None:
+        result: list[tuple] | list[dict] | dict | tuple | None = None
         match (mapped, only_one):
             case (True, True):
-                result = proxy_result.mappings().fetchone()
+                row = proxy_result.mappings().fetchone()
+                result = dict(row) if row else None
             case (True, False):
-                result = proxy_result.mappings().fetchall()
+                rows = proxy_result.mappings().fetchall()
+                result = [dict(r) for r in rows] if rows else []
             case (_, True):
-                result = proxy_result.fetchone()
+                row = proxy_result.fetchone()  # type: ignore
+                result = tuple(row) if row else None
             case (_, False):
-                result = proxy_result.fetchall()
-
+                row = proxy_result.fetchall()  # type: ignore
+                result = [tuple(r) for r in row] if row else []
         return result
