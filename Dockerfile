@@ -1,11 +1,9 @@
 # ========= Base (общие настройки) =========
-ARG PYTHON_VERSION=3.13
-FROM python:${PYTHON_VERSION}-alpine as base
+ARG PYTHON_VERSION=3.14
+FROM astral/uv:python${PYTHON_VERSION}-alpine as base
 
 WORKDIR /code
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_CACHE_DIR=/code/.uv-cache
-
-RUN pip install --no-cache-dir uv==0.10.7
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 # ========= Builder (runtime venv) =========
 FROM base AS builder
