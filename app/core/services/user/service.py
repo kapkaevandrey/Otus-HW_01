@@ -48,7 +48,7 @@ class UserService(BaseService):
     async def login_user(
         self, user_id: UUID, password: str, auth_utils: AuthUtils, settings: AuthSettings
     ) -> BaseServiceResponse[AccessRefreshServiceResponse]:
-        response = BaseServiceResponse[AuthUserServiceResponse]()
+        response = BaseServiceResponse[AccessRefreshServiceResponse]()
         async with self.context.uow.transaction() as uow:
             dto = await self.utils.get_user_by_id(user_id, uow)
             auth_utils.check_password(password, dto.password)
