@@ -8,8 +8,13 @@
 run:
 	docker-compose up
 
+## run_load_test:       start app in docker with infra for testing
+run_load_test: down
+	docker-compose -f test_infra/docker-compose.yaml up
+
 down:
 	docker-compose down --remove-orphans
+	docker-compose -f test_infra/docker-compose.yaml down --remove-orphans
 
 
 ## pytest:    run pytest

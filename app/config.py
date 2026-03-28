@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Literal
-from uuid import uuid4
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
@@ -29,11 +28,12 @@ class AppSettings(EmptyBaseSettings):
 
 
 class AuthSettings(EmptyBaseSettings):
-    JWT_PUB_KEY: str = str(uuid4())
-    JWT_PRIVATE_KEY: str = str(uuid4())
+    JWT_PUB_KEY: str = "secret"
+    JWT_PRIVATE_KEY: str = "secret"
     JWT_ALG: Literal["HS256", "RS256", "ES256"] = "HS256"
     JWT_ACCESS_EXP_SECONDS: int = 60 * 60
     JWT_REFRESH_EXP_SECONDS: int = 7 * 24 * 60 * 60
+    AUTH_TOKEN_TYPE: str = "Bearer"
 
 
 class DbSettings(EmptyBaseSettings):

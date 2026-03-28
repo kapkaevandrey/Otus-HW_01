@@ -7,6 +7,7 @@ class UserType(StrEnum):
 
 class ScopeType(StrEnum):
     ACCESS = "access"
+    REFRESH = "refresh"
 
 
 class Tables(StrEnum):

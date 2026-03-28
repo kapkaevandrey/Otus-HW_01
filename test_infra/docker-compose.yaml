@@ -1,0 +1,84 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: dev
+    restart: always
+    environment:
+      ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030,http://0.0.0.0:8000"
+      DB_HOST: db
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../dev.env
+    command:
+      ["start", "8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    container_name: db
+    image: postgres:15
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=app_db
+      - POSTGRES_PASSWORD=app_pswd
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      INFLUXDB_DB: mydb
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_ADMIN_PASSWORD: adminpass
+      INFLUXDB_USER: grafana
+      INFLUXDB_USER_PASSWORD: grafanapass
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    depends_on:
+      app:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+    ports:
+      - "5665:5665"
+    volumes:
+      - ./scripts:/scripts
+      - ./k6_reports:/reports
+    environment:
+      - K6_WEB_DASHBOARD=true
+      - K6_WEB_DASHBOARD_EXPORT=/reports/html-report.html
+    entrypoint: ["k6", "run", "/scripts/load_search_users.js"]
+
+
+volumes:
+  grafana_data:
+  postgres_data:

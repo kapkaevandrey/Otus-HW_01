@@ -210,3 +210,4 @@ __marimo__/
 .idea
 .env
 .venv
+test_infra/k6*

@@ -1,11 +1,12 @@
 from functools import cached_property
 from uuid import UUID
 
-from app.core.enums import ScopeType
+from app.config import AuthSettings
 from app.core.services.auth import AuthUtils
 from app.core.services.base import BaseService, async_use_case
 from app.schemas.dto import UserCreateSchema
 from app.schemas.services import (
+    AccessRefreshServiceResponse,
     AuthUserServiceResponse,
     BaseServiceResponse,
     GetUserServiceResponse,
@@ -45,14 +46,13 @@ class UserService(BaseService):
 
     @async_use_case()
     async def login_user(
-        self, user_id: UUID, password: str, auth_utils: AuthUtils
-    ) -> BaseServiceResponse[AuthUserServiceResponse]:
+        self, user_id: UUID, password: str, auth_utils: AuthUtils, settings: AuthSettings
+    ) -> BaseServiceResponse[AccessRefreshServiceResponse]:
         response = BaseServiceResponse[AuthUserServiceResponse]()
         async with self.context.uow.transaction() as uow:
             dto = await self.utils.get_user_by_id(user_id, uow)
             auth_utils.check_password(password, dto.password)
-            token = await auth_utils.get_or_update_user_token(user_id, ScopeType.ACCESS, uow)
-            response.result = AuthUserServiceResponse(token=token.token)
+            response.result = auth_utils.get_access_refresh_token(user_id, settings)
         return response
 
     @async_use_case()

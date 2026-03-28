@@ -29,21 +29,7 @@ def upgrade():
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     """)
-    op.execute("""
-    CREATE TABLE user_tokens (
-        user_id UUID NOT NULL,
-        token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        scope VARCHAR(255),
-        user_type VARCHAR(255),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        CONSTRAINT fk_user
-            FOREIGN KEY(user_id)
-            REFERENCES users(id)
-            ON DELETE CASCADE
-    );
-    """)
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS user_tokens;")
     op.execute("DROP TABLE IF EXISTS users;")

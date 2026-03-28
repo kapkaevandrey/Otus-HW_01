@@ -1,14 +1,16 @@
+import datetime as dt
 from http import HTTPStatus
 from string import ascii_letters, ascii_uppercase, digits
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import bcrypt
+import jwt
 
-from app.core.enums import ScopeType, UserType
-from app.core.repositories import UnitOfWork
+from app.config import AuthSettings
+from app.core.enums import ScopeType
 from app.core.services.utils import ServiceUtils
 from app.exceptions import BaseServiceError
-from app.schemas.dto import UserTokenCreateSchema, UserTokenDto
+from app.schemas.services import AccessRefreshServiceResponse, TokenSchema
 
 
 class AuthUtils(ServiceUtils):
@@ -29,13 +31,34 @@ class AuthUtils(ServiceUtils):
             )
 
     @staticmethod
-    async def get_or_update_user_token(user_id: UUID, scope: ScopeType, uow: UnitOfWork) -> UserTokenDto:
-        user_token = await uow.token_repo.get_by_user_id(user_id=user_id)
-        if not user_token:
-            user_token = await uow.token_repo.add(
-                UserTokenCreateSchema(token=uuid4(), scope=scope, user_id=user_id, user_type=UserType.USER)
-            )
-        return user_token
+    def get_access_refresh_token(user_id: UUID, settings: AuthSettings) -> AccessRefreshServiceResponse:
+        now = dt.datetime.now(dt.UTC)
+        access_exp = now + dt.timedelta(seconds=settings.JWT_ACCESS_EXP_SECONDS)
+        refresh_exp = now + dt.timedelta(seconds=settings.JWT_REFRESH_EXP_SECONDS)
+        jwt_data = {
+            "sub": str(user_id),
+            "scope": ScopeType.ACCESS,
+            "exp": access_exp,
+            "iat": dt.datetime.now(),
+        }
+        access_token = jwt.encode(payload=jwt_data, key=settings.JWT_PRIVATE_KEY, algorithm=settings.JWT_ALG)
+        jwt_data["exp"] = refresh_exp
+        jwt_data["scope"] = ScopeType.REFRESH
+        refresh_token = jwt.encode(payload=jwt_data, key=settings.JWT_PRIVATE_KEY, algorithm=settings.JWT_ALG)
+        return AccessRefreshServiceResponse(
+            access_token=TokenSchema(
+                token=access_token,
+                type=settings.AUTH_TOKEN_TYPE,
+                scope=ScopeType.ACCESS,
+                exp=int(access_exp.timestamp()),
+            ),
+            refresh_token=TokenSchema(
+                token=refresh_token,
+                type=settings.AUTH_TOKEN_TYPE,
+                scope=ScopeType.REFRESH,
+                exp=int(refresh_exp.timestamp()),
+            ),
+        )
 
     def check_password_is_correct(
         self,
