@@ -23,7 +23,7 @@ TEST_DB_NAME = "_test_db"
 db_settings.DB_DATABASE = TEST_DB_NAME
 
 async_test_engine = create_async_engine(
-    db_settings.db_dsn,
+    db_settings.db_dsn_master,
     echo=db_settings.DB_ECHO,
     poolclass=NullPool,
 )
@@ -40,13 +40,13 @@ async def init_test_db():
     """
     Создаёт тестовую базу данных и после сессии тестов, удаляет её.
     """
-    engine = create_async_engine(db_settings.db_url, isolation_level="AUTOCOMMIT")
+    engine = create_async_engine(db_settings.db_master_url, isolation_level="AUTOCOMMIT")
     async with engine.begin() as conn:
         result = await conn.execute(text(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{TEST_DB_NAME}'"))
         if not result.scalar():
             await conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
     alembic_cfg = Config("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", db_settings.db_dsn.render_as_string(hide_password=False))
+    alembic_cfg.set_main_option("sqlalchemy.url", db_settings.db_dsn_master.render_as_string(hide_password=False))
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, lambda: command.upgrade(alembic_cfg, "head"))
     yield
@@ -60,7 +60,7 @@ async def reset_db():
     Прогоняем все миграции на тестовую базу, чтобы была чистая структура.
     """
     alembic_cfg = Config("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", db_settings.db_dsn.render_as_string(hide_password=False))
+    alembic_cfg.set_main_option("sqlalchemy.url", db_settings.db_dsn_master.render_as_string(hide_password=False))
     command.downgrade(alembic_cfg, "base")
 
 
@@ -72,7 +72,7 @@ async def create_tables(request):
     if "disable_autouse" in request.keywords:
         yield
     else:
-        engine = create_async_engine(db_settings.db_dsn, isolation_level="AUTOCOMMIT")
+        engine = create_async_engine(db_settings.db_dsn_master, isolation_level="AUTOCOMMIT")
         yield
         async with engine.begin() as connection:
             result = await connection.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'"))

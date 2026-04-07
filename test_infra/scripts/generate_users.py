@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import random
 import uuid
+from pathlib import Path
 
 import asyncpg
 from faker import Faker
@@ -19,7 +20,11 @@ DB_CONFIG = {
 TABLE_NAME = "users"
 BATCH_SIZE = 5000
 TOTAL_RECORDS = 1_000_000
-SEARCH_PAIRS_COUNT = 1000
+
+K6_IDS_COUNT = 100_000
+K6_SEARCH_COUNT = 50_000
+
+PATH = Path(__file__).parent.resolve()
 
 fake = Faker(["ru_RU", "en_US"])  # русские и английские имена
 
@@ -29,6 +34,7 @@ LAST_NAMES = list({fake.last_name() for _ in range(25_000)})[:1000]
 
 print(len(FIRST_NAMES), len(LAST_NAMES))
 
+IDS = [str(uuid.uuid4()) for _ in range(TOTAL_RECORDS)]
 ALL_PAIRS = [(fn, ln) for fn in FIRST_NAMES for ln in LAST_NAMES]
 random.shuffle(ALL_PAIRS)
 
@@ -45,7 +51,7 @@ async def main():
         if i > TOTAL_RECORDS:
             break
         record = (
-            str(uuid.uuid4()),
+            IDS[i - 1],
             fn,
             ln,
             fake.date_of_birth(minimum_age=18, maximum_age=80),
@@ -80,12 +86,18 @@ async def main():
     await conn.close()
     print("Done inserting!")
 
-    # Генерация списка пар для нагрузки
-    search_pairs = random.sample(ALL_PAIRS, k=SEARCH_PAIRS_COUNT)
-    with open("search_pairs.json", "w", encoding="utf-8") as f:
-        json.dump([{"first_name": fn, "second_name": ln} for fn, ln in search_pairs], f, ensure_ascii=False, indent=2)
+    # 1. Генерация списка id для нагрузки
+    k6_ids = random.sample(IDS, K6_IDS_COUNT)
+    with open(PATH / "user_ids.json", "w") as f:
+        json.dump(k6_ids, f)
+    print(f"user_ids.json: {len(k6_ids)}")
 
-    print(f"Saved {SEARCH_PAIRS_COUNT} search pairs to search_pairs.json")
+    # 2. search пары
+    search_pairs = random.sample(ALL_PAIRS, K6_SEARCH_COUNT)
+    k6_pairs = [{"first_name": fn, "last_name": ln} for fn, ln in search_pairs]
+    with open(PATH / "search_pairs.json", "w") as f:
+        json.dump(k6_pairs, f)
+    print(f"search_pairs.json: {len(k6_pairs)}")
 
 
 if __name__ == "__main__":

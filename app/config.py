@@ -1,3 +1,4 @@
+from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
@@ -37,14 +38,16 @@ class AuthSettings(EmptyBaseSettings):
 
 
 class DbSettings(EmptyBaseSettings):
-    DB_HOST: str = "db"
-    DB_PORT: int = 5432
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "app_pswd"
+    DB_MASTER_HOST: str = "db"
+    DB_MASTER_PORT: int = 5432
+    DB_MASTER_USER: str = "postgres"
+    DB_MASTER_PASSWORD: str = "app_pswd"
     DB_DATABASE: str = "app_db"
     DB_ECHO: bool = False
     DB_DRIVER: str = "postgresql+asyncpg"
     DB_ENABLE_PG_BOUNCER: bool = False
+
+    DB_REPLICAS: str = ""  # format host:port,host1:port1
 
     DB_POOL_SIZE: int = 15
     DB_MAX_OVERFLOW: int = 5
@@ -52,12 +55,35 @@ class DbSettings(EmptyBaseSettings):
     DB_POOL_RECYCLE: int = 3600
 
     @property
-    def db_dsn(self) -> URL:
-        return URL.create(self.DB_DRIVER, self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_DATABASE)
+    def db_dsn_master(self) -> URL:
+        return URL.create(
+            self.DB_DRIVER,
+            self.DB_MASTER_USER,
+            self.DB_MASTER_PASSWORD,
+            self.DB_MASTER_HOST,
+            self.DB_MASTER_PORT,
+            self.DB_DATABASE,
+        )
 
     @property
-    def db_url(self) -> URL:
-        return URL.create(self.DB_DRIVER, self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT)
+    def db_master_url(self) -> URL:
+        return URL.create(
+            self.DB_DRIVER, self.DB_MASTER_USER, self.DB_MASTER_PASSWORD, self.DB_MASTER_HOST, self.DB_MASTER_PORT
+        )
+
+    @cached_property
+    def db_replicas_dsns(self) -> list[URL]:
+        result: list[URL] = []
+        if not self.DB_REPLICAS:
+            return result
+        for string in self.DB_REPLICAS.split(","):
+            host, port = string.split(":")
+            result.append(
+                URL.create(
+                    self.DB_DRIVER, self.DB_MASTER_USER, self.DB_MASTER_PASSWORD, host, int(port), self.DB_DATABASE
+                )
+            )
+        return result
 
 
 app_settings = AppSettings()

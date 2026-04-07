@@ -7,7 +7,6 @@ from app.core.services.base import BaseService, async_use_case
 from app.schemas.dto import UserCreateSchema
 from app.schemas.services import (
     AccessRefreshServiceResponse,
-    AuthUserServiceResponse,
     BaseServiceResponse,
     GetUserServiceResponse,
     RegisterUserData,
@@ -39,7 +38,7 @@ class UserService(BaseService):
     @async_use_case()
     async def get_user(self, user_id: UUID) -> BaseServiceResponse[GetUserServiceResponse]:
         response = BaseServiceResponse[GetUserServiceResponse]()
-        async with self.context.uow.transaction() as uow:
+        async with self.context.uow.transaction(read_only=True) as uow:
             dto = await self.utils.get_user_by_id(user_id, uow)
             response.result = GetUserServiceResponse.model_validate(dto)
         return response
@@ -49,7 +48,7 @@ class UserService(BaseService):
         self, user_id: UUID, password: str, auth_utils: AuthUtils, settings: AuthSettings
     ) -> BaseServiceResponse[AccessRefreshServiceResponse]:
         response = BaseServiceResponse[AccessRefreshServiceResponse]()
-        async with self.context.uow.transaction() as uow:
+        async with self.context.uow.transaction(read_only=True) as uow:
             dto = await self.utils.get_user_by_id(user_id, uow)
             auth_utils.check_password(password, dto.password)
             response.result = auth_utils.get_access_refresh_token(user_id, settings)
@@ -60,7 +59,7 @@ class UserService(BaseService):
         self, first_name: str, second_name: str
     ) -> BaseServiceResponse[list[GetUserServiceResponse]]:
         response = BaseServiceResponse[list[GetUserServiceResponse]]()
-        async with self.context.uow.transaction() as uow:
+        async with self.context.uow.transaction(read_only=True) as uow:
             dtos = await uow.user_repo.search_by_first_name_last_name(first_name, second_name)
             response.result = [GetUserServiceResponse.model_validate(dto) for dto in dtos]
         return response

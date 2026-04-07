@@ -211,3 +211,4 @@ __marimo__/
 .env
 .venv
 test_infra/k6*
+test_infra/scripts/*.json

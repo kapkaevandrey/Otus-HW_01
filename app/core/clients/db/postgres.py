@@ -1,8 +1,8 @@
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import URL, AsyncAdaptedQueuePool, NullPool
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import URL, AsyncAdaptedQueuePool, NullPool, text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.config import DbSettings
 from app.core.clients.db.base import SQLAlchemyAsyncDbBaseClient
@@ -20,10 +20,10 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
             connect_args["statement_cache_size"] = 0
             connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"  # type: ignore
         return cls(
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            username=settings.DB_USER,
-            password=settings.DB_PASSWORD,
+            host=settings.DB_MASTER_HOST,
+            port=settings.DB_MASTER_PORT,
+            username=settings.DB_MASTER_USER,
+            password=settings.DB_MASTER_PASSWORD,
             database=settings.DB_DATABASE,
             db_driver=settings.DB_DRIVER,
             echo=settings.DB_ECHO,
@@ -32,23 +32,13 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
             pool_timeout=settings.DB_TIMEOUT,
             pool_recycle=settings.DB_POOL_RECYCLE,
             pg_bouncer_enabled=settings.DB_ENABLE_PG_BOUNCER,
+            replicas_urls=settings.db_replicas_dsns,
             connect_args=connect_args,
         )
 
     @property
-    def session_maker(self) -> async_sessionmaker[AsyncSession]:
-        if not self._session_maker:
-            self._session_maker = async_sessionmaker(
-                self.engine,
-                expire_on_commit=False,
-                autoflush=False,
-                autocommit=False,
-            )
-        return self._session_maker
-
-    @property
-    def engine(self) -> AsyncEngine:
-        if not self._engine:
+    def master_engine(self) -> AsyncEngine:
+        if self._master_engine is None:
             kwargs = {}
             keys = ["echo", "pool_size", "max_overflow", "pool_timeout", "pool_recycle"]
             if self._pg_bouncer_enabled:
@@ -56,17 +46,41 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
             for key in keys:
                 if key in self.additional_params:
                     kwargs[key] = self.additional_params[key]
-            self._engine = create_async_engine(
-                self.db_url,
+            self._master_engine = create_async_engine(
+                self.db_master_url,
                 **kwargs,
                 future=True,
                 poolclass=NullPool if self._pg_bouncer_enabled else AsyncAdaptedQueuePool,
                 connect_args=self._connect_args,
             )
-        return self._engine
+        return self._master_engine
 
     @property
-    def db_url(self) -> URL:
+    def replica_engines(self):
+        if not self._replica_engines and self._replicas_urls:
+            res = []
+            kwargs = {}
+            keys = ["echo", "pool_size", "max_overflow", "pool_timeout", "pool_recycle"]
+            if self._pg_bouncer_enabled:
+                keys = ["echo"]
+            for key in keys:
+                if key in self.additional_params:
+                    kwargs[key] = self.additional_params[key]
+            for url in self._replicas_urls:
+                res.append(
+                    create_async_engine(
+                        url,
+                        **kwargs,
+                        future=True,
+                        poolclass=NullPool if self._pg_bouncer_enabled else AsyncAdaptedQueuePool,
+                        connect_args=self._connect_args,
+                    )
+                )
+            self._replica_engines = res
+        return self._replica_engines or []
+
+    @property
+    def db_master_url(self) -> URL:
         return URL.create(
             self._db_driver,
             self._user,
@@ -75,6 +89,11 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
             self._port,
             self._database,
         )
+
+    async def is_master(self, engine: AsyncEngine) -> bool:
+        async with engine.connect() as conn:
+            res = await conn.execute(text("SELECT pg_is_in_recovery()"))
+            return res.scalar() is False
 
     async def check_connection(self) -> None:
         query = "select 1 as param"

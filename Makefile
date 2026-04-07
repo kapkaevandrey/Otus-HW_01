@@ -12,6 +12,12 @@ run:
 run_load_test: down
 	docker-compose -f test_infra/docker-compose.yaml up
 
+## run_load_read_test:       start app in docker with infra for testing
+run_load_read_test: down
+	docker-compose -f test_infra/docker-compose.yaml -p test_load_infra up -d
+	uv run test_infra/scripts/generate_users.py
+	docker-compose -f test_infra/docker-compose.yaml -p test_load_infra run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
+
 down:
 	docker-compose down --remove-orphans
 	docker-compose -f test_infra/docker-compose.yaml down --remove-orphans
