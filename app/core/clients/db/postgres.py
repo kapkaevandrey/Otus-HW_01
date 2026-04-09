@@ -95,6 +95,7 @@ class SQLAlchemyAsyncPgClient(SQLAlchemyAsyncDbBaseClient):
             res = await conn.execute(text("SELECT pg_is_in_recovery()"))
             return res.scalar() is False
 
-    async def check_connection(self) -> None:
-        query = "select 1 as param"
-        await self.execute_stmt(query)
+    async def check_connection(self, engine: AsyncEngine) -> None:
+        async with engine.connect() as conn:
+            query = "select 1 as param"
+            await conn.execute(text(query))

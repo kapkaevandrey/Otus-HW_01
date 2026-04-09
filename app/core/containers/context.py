@@ -31,11 +31,11 @@ class Context:
 
     async def start_clients(self):
         """Start all clients if that need"""
-        pass
+        await self.db_client.start_client()
 
     async def stop_clients(self):
         """Stop all clients if that need"""
-        pass
+        await self.db_client.stop_client()
 
 
 context = Context(

@@ -6,9 +6,10 @@ from logging import Logger, getLogger
 from typing import Any
 
 from sqlalchemy import URL, Executable, Result, text
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.exceptions import DatabaseError
+from app.exceptions import ConnectionDbError, DatabaseError
 
 
 class SessionOperations(StrEnum):
@@ -54,6 +55,27 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
             SessionOperations.READ: list(self.replica_engines),
             SessionOperations.READ_WRITE: [self.master_engine],
         }
+        self._need_check_dead_connections: set[AsyncEngine] = set()
+        self._check_dead_connection_task: asyncio.Task | None = None
+
+    async def start_client(self) -> None:
+        await self.refresh_read_write_consistency()
+        self._check_dead_connection_task = asyncio.create_task(self.check_dead_connection_task())
+
+    async def stop_client(self) -> None:
+        if self._check_dead_connection_task:
+            self._check_dead_connection_task.cancel()
+
+    async def check_dead_connection_task(self) -> None:
+        while True:
+            for eng in self._need_check_dead_connections:
+                try:
+                    await self.check_connection(eng)
+                    self._need_check_dead_connections.remove(eng)
+                    self._engines_lives_map[eng] = True
+                except Exception:
+                    self.logger.error("Connection is dead", exc_info=True)
+            await asyncio.sleep(10)
 
     @classmethod
     def from_settings(cls, settings: Any) -> SQLAlchemyAsyncDbBaseClient:
@@ -68,24 +90,32 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def check_connection(self) -> None:
+    async def check_connection(self, engine: AsyncEngine) -> None:
         raise NotImplementedError
 
     @abstractmethod
     async def is_master(self, engine: AsyncEngine) -> bool:
         pass
 
+    def _get_alive_engines(self, op: SessionOperations) -> list[AsyncEngine]:
+        engines = self._engine_map.get(op, [])
+        return [e for e in engines if self._engines_lives_map.get(e, True)]
+
+    def _choose_engine(self, read_only: bool) -> AsyncEngine:
+        masters = self._get_alive_engines(SessionOperations.READ_WRITE)
+        replicas = self._get_alive_engines(SessionOperations.READ)
+        pool = (replicas or masters) if read_only else masters
+        if not pool:
+            raise DatabaseError("No alive DB engines")
+        return rnd.choice(pool)
+
     def get_session_maker(self, read_only: bool = False) -> async_sessionmaker[AsyncSession]:
-        if read_only and self._engine_map[SessionOperations.READ]:
-            engine = rnd.choice(self._engine_map[SessionOperations.READ])
-        else:
-            engine = rnd.choice(self._engine_map[SessionOperations.READ_WRITE])
+        engine = self._choose_engine(read_only)
         if engine not in self._session_maker_maps:
             self._session_maker_maps[engine] = async_sessionmaker(
                 engine,
                 expire_on_commit=False,
                 autoflush=False,
-                autocommit=False,
             )
         return self._session_maker_maps[engine]
 
@@ -98,8 +128,9 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
             *(self.is_master(engine) for engine in self._all_engines), return_exceptions=True
         )
         for res, eng in zip(results, self._all_engines, strict=False):
-            if isinstance(results[0], Exception):
+            if isinstance(res, Exception):
                 self._engines_lives_map[eng] = False
+                self._need_check_dead_connections.add(eng)
             else:
                 self._engines_lives_map[eng] = True
             if res:
@@ -107,6 +138,14 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
             else:
                 new_map[SessionOperations.READ].append(eng)
         self._engine_map = new_map
+
+    @staticmethod
+    def is_retryable_error(exc: Exception) -> bool:
+        if isinstance(exc, (OperationalError, InterfaceError)):
+            return True
+        if isinstance(exc, DBAPIError):
+            return exc.connection_invalidated
+        return False
 
     async def execute_stmt(
         self,
@@ -147,6 +186,8 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
             try:
                 return await session.execute(stmt, params)
             except Exception as exc:
+                if not self.is_retryable_error(exc):
+                    raise ConnectionDbError from exc
                 if trie == tries - 1:
                     exception = exc
                     self.logger.error(self.DB_ERROR_MESSAGE.format(exc=exception), exc_info=True)

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from http import HTTPStatus
 
@@ -14,7 +13,6 @@ router = APIRouter()
 
 @router.get("/healthz", include_in_schema=False)
 async def readiness_probe(context: Context = Depends(get_context)) -> str:
-    await asyncio.gather(context.db_client.check_connection())
     return "OK"
 
 

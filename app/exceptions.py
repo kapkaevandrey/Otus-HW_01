@@ -27,3 +27,7 @@ class BaseServiceError(Exception):
 
 class DatabaseError(Exception):
     pass
+
+
+class ConnectionDbError(DatabaseError):
+    pass

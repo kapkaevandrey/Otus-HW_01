@@ -25,7 +25,7 @@ run_load_read_test_infra_db_replicas: down
 
 start_db_replicas_infra: down
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db up -d
-	docker-compose -f test_infra/docker-compose.db-replica.yaml stop replica_pg_1 replica_pg_2
+	docker stop replica_pg_1 replica_pg_2
 
 
 down:
