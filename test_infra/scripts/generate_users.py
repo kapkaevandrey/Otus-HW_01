@@ -95,9 +95,10 @@ async def main():
     # 2. search пары
     search_pairs = random.sample(ALL_PAIRS, K6_SEARCH_COUNT)
     k6_pairs = [{"first_name": fn, "last_name": ln} for fn, ln in search_pairs]
-    with open(PATH / "search_pairs.json", "w") as f:
-        json.dump(k6_pairs, f)
+    with open(PATH / "search_pairs.json", "w", encoding="utf-8") as f:
+        json.dump(k6_pairs, f, ensure_ascii=False, indent=2)
     print(f"search_pairs.json: {len(k6_pairs)}")
+    await asyncio.sleep(5)
 
 
 if __name__ == "__main__":

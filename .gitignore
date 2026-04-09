@@ -212,3 +212,4 @@ __marimo__/
 .venv
 test_infra/k6*
 test_infra/scripts/*.json
+test_infra/volumes
