@@ -1,0 +1,42 @@
+scope: app_cluster
+name: patroni1
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: patroni1:8008
+
+etcd3:
+  hosts: ['etcd:2379']
+
+bootstrap:
+  dcs:
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - host all all 0.0.0.0/0 md5
+    - host replication replicator 0.0.0.0/0 md5
+
+  post_init: |
+    psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE app_db;"
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: patroni1:5432
+  data_dir: /var/lib/postgresql/data
+  parameters:
+    unix_socket_directories: '/tmp'
+  authentication:
+    replication:
+      username: replicator
+      password: app_pswd
+    superuser:
+      username: postgres
+      password: app_pswd

@@ -59,8 +59,9 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
         self._check_dead_connection_task: asyncio.Task | None = None
 
     async def start_client(self) -> None:
-        await self.refresh_read_write_consistency()
-        self._check_dead_connection_task = asyncio.create_task(self.check_dead_connection_task())
+        if self._replicas_urls:
+            await self.refresh_read_write_consistency()
+            self._check_dead_connection_task = asyncio.create_task(self.check_dead_connection_task())
 
     async def stop_client(self) -> None:
         if self._check_dead_connection_task:
@@ -120,6 +121,8 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
         return self._session_maker_maps[engine]
 
     async def refresh_read_write_consistency(self) -> None:
+        if not self._replicas_urls:
+            return
         new_map: dict[SessionOperations, list[AsyncEngine]] = {
             SessionOperations.READ: [],
             SessionOperations.READ_WRITE: [],

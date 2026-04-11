@@ -1,3 +1,25 @@
+x-patroni-common: &patroni-common
+#  image: ongres/patroni:v4.0.4-pg16.6-build-6.39
+  build:
+    context: .
+    dockerfile: ./patroni/Dockerfile.patroni
+  networks:
+    - infra
+  environment:
+    PATRONI_SCOPE: app_cluster
+    PATRONI_NAME: ${PATRONI_NAME}
+    PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
+    PATRONI_POSTGRESQL_CONNECT_ADDRESS: ${PATRONI_NAME}:5432
+    PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+    PATRONI_RESTAPI_CONNECT_ADDRESS: ${PATRONI_NAME}:8008
+    PATRONI_ETCD_HOST: etcd:2379
+    POSTGRES_PASSWORD: app_pswd
+    POSTGRES_DB: app_db
+  command: patroni /etc/patroni.yml
+  depends_on:
+    - etcd
+
+
 services:
   app:
     container_name: app
@@ -8,7 +30,7 @@ services:
     restart: always
     environment:
       ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030,http://0.0.0.0:8000"
-      DB_MASTER_HOST: master_pg
+      DB_MASTER_HOST: haproxy
     ports:
       - "8000:8000"
     env_file:
@@ -16,30 +38,87 @@ services:
     command:
       ["start", "8000"]
     depends_on:
-      master_pg:
+      haproxy:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "true"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    networks:
+      - infra
 
-  master_pg:
-    container_name: db
-    image: postgres:17
-    restart: always
-    ports:
-      - "5432:5432"
+  patroni1:
+    <<: *patroni-common
+    container_name: patroni1
     environment:
-      - POSTGRES_DB=app_db
-      - POSTGRES_PASSWORD=app_pswd
+      PATRONI_NAME: patroni1
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./patroni/patroni1.yaml:/etc/patroni.yml
+      - pgdata1:/var/lib/postgresql:rw
+
+  patroni2:
+    <<: *patroni-common
+    container_name: patroni2
+    environment:
+      PATRONI_NAME: patroni2
+    volumes:
+      - ./patroni/patroni2.yaml:/etc/patroni.yml:ro
+      - pgdata2:/var/lib/postgresql:rw
+    depends_on:
+      patroni1:
+        condition: service_started
+
+  patroni3:
+    <<: *patroni-common
+    container_name: patroni3
+    environment:
+      PATRONI_NAME: patroni3
+    volumes:
+      - ./patroni/patroni3.yaml:/etc/patroni.yml:ro
+      - pgdata3:/var/lib/postgresql:rw
+    depends_on:
+      patroni1:
+        condition: service_started
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    hostname: etcd
+    container_name: etcd
+    networks:
+      - infra
+    environment:
+      ETCD_NAME: etcd
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_INITIAL_CLUSTER: etcd=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: patroni
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 5s
+      test: ["CMD-SHELL", "etcdctl endpoint health --endpoints=http://localhost:2379"]
+      interval: 10s
       timeout: 5s
       retries: 5
+
+  haproxy:
+    image: haproxy:2.9-alpine
+    hostname: haproxy
+    container_name: haproxy
+    ports:
+      - "5432:5432"
+    networks:
+      - infra
+    volumes:
+      - ./patroni/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    healthcheck:
+      test: [ "CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      patroni1:
+        condition: service_started
+      patroni2:
+        condition: service_started
+      patroni3:
+        condition: service_started
 
   k6:
     image: grafana/k6:latest
@@ -53,5 +132,11 @@ services:
       - K6_WEB_DASHBOARD=true
       - K6_WEB_DASHBOARD_EXPORT=/reports/html-report.html
 
+networks:
+  infra:
+    name: infra
+
 volumes:
-  postgres_data:
+  pgdata1:
+  pgdata2:
+  pgdata3:
