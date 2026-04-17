@@ -1,5 +1,4 @@
 x-patroni-common: &patroni-common
-#  image: ongres/patroni:v4.0.4-pg16.6-build-6.39
   build:
     context: .
     dockerfile: ./patroni/Dockerfile.patroni
