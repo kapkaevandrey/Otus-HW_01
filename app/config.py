@@ -37,6 +37,28 @@ class AuthSettings(EmptyBaseSettings):
     AUTH_TOKEN_TYPE: str = "Bearer"
 
 
+class RedisSettings(EmptyBaseSettings):
+    REDIS_HOST: str = "redis"
+    REDIS_SSL: bool = False
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 1
+    REDIS_PASSWORD: str = ""
+    REDIS_POOL_MAX_SIZE: int = 50
+    REDIS_TIMEOUT_SEC: int = 30
+    REDIS_HEALTH_CHECK_INTERVAL: int = 30
+    REDIS_RETRY_ON_TIMEOUT: bool = True
+    REDIS_DEFAULT_SETTINGS_TTL: int = 24 * 60 * 60
+
+
+class KafkaSettings(EmptyBaseSettings):
+    KAFKA_BROKERS: str = "kafka:9093"
+    KAFKA_SECURITY_PROTOCOL: str = "PLAINTEXT"
+    KAFKA_SASL_MECHANISM: str = "PLAIN"
+    KAFKA_SASL_PLAIN_USERNAME: str | None = None
+    KAFKA_SASL_PLAIN_PASSWORD: str | None = None
+    KAFKA_MAX_REQUEST_SIZE_BYTES: int = 1 * 1024 * 1024
+
+
 class DbSettings(EmptyBaseSettings):
     DB_MASTER_HOST: str = "db"
     DB_MASTER_PORT: int = 5432
@@ -89,3 +111,4 @@ class DbSettings(EmptyBaseSettings):
 app_settings = AppSettings()
 auth_settings = AuthSettings()
 db_settings = DbSettings()
+redis_settings = RedisSettings()

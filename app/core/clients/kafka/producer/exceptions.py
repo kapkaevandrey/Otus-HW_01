@@ -1,0 +1,2 @@
+class SendMessageToKafkaError(Exception):
+    pass
