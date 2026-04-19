@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -7,11 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
 from app.core.enums import StrEnum
 from app.exceptions import DatabaseInstanceNotFoundError, DatabaseMultiplyResultError
+from app.schemas.base import EmptyBaseSchema
+
+from .schemas import JoinCondition, JoinType
 
 
 DtoSchemaType = TypeVar("DtoSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
+
+
+class JoinParams(EmptyBaseSchema):
+    orig_repo: BaseRepository
+    joined_repo: BaseRepository
+    join_type: JoinType = JoinType.INNER
+    on: list[JoinCondition]
+    where: dict[str, Any] | None = None
+    order_by: list[str] | None = None
 
 
 class LookupExpressionSuffixes(StrEnum):
@@ -107,20 +120,29 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
     async def get_by_attributes(
         self,
         where_params: dict[str, Any] | None = None,
+        joins: list[JoinParams] | None = None,
         order_fields: list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[DtoSchemaType]:
         _where_params = where_params or {}
         _order_fields = order_fields or []
-        where_string, query_params = self.collect_where_string(_where_params)
+        _joins = joins or []
+        where_string, where_params = self.collect_where_string(_where_params)
+        join_string = self.collect_join_string(_joins)
+        join_where_string, join_where_params = self.collect_join_where_string(_joins, where_params)
         order_string = self.collect_order_string(_order_fields)
         stmt = f"""
-            SELECT *
+            SELECT {self._table}.*
             FROM {self._table} 
+            {join_string} 
         """
         if where_string:
             stmt = stmt + f" WHERE {where_string} "
+        if join_where_string:
+            prefix = " WHERE " if not where_string else " "
+            where_prefix = " AND " if not prefix else " "
+            stmt = stmt + prefix + where_prefix + f" {join_where_string} "
         if order_string:
             stmt = stmt + f" ORDER BY {order_string} "
         if limit:
@@ -128,7 +150,7 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         if offset:
             stmt = stmt + f" OFFSET {offset} "
         stmt = stmt.strip()
-        result = await self.db_client.execute_stmt(stmt, query_params)
+        result = await self.db_client.execute_stmt(stmt, {**where_params, **join_where_params})
         return [self.dto_schema.model_validate(row) for row in result]
 
     async def get(self, pk_data: dict[str, Any]) -> DtoSchemaType | None:
@@ -137,10 +159,33 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             raise DatabaseMultiplyResultError(f"More than one result found - {results}")
         return self.dto_schema.model_validate(results[0]) if results else None
 
-    async def remove(self, pk_data: dict[str, Any]) -> DtoSchemaType:
-        dto = await self.get(pk_data)
-        if not dto:
+    async def update(
+        self, pk_data: dict[str, Any], data: UpdateSchemaType, exclude_none: bool = False
+    ) -> DtoSchemaType:
+        where_string, where_params = self.collect_where_string(pk_data)
+        set_data = data.model_dump(exclude_unset=True, exclude_none=False)
+        if not set_data:
+            raise ValueError("No values provided for update")
+        set_params, set_parts = {}, []
+        for key, value in set_data.items():
+            param_key = f"set_{key}"  # чтобы не пересеклось с WHERE
+            set_parts.append(f"{key} = :{param_key}")
+            set_params[param_key] = value
+        set_string = ", ".join(set_parts)
+        query = f"""
+            UPDATE {self._table}  
+            SET {set_string} 
+            WHERE {where_string} 
+            RETURNING *
+        """
+        result = await self.db_client.execute_stmt(
+            query, params={**where_params, **set_params}, external_session=self._session, only_one=True
+        )
+        if not result:
             raise DatabaseInstanceNotFoundError(f"Instance for remove not found. Params {pk_data}")
+        return self.dto_schema.model_validate(result)
+
+    async def remove(self, pk_data: dict[str, Any]) -> DtoSchemaType:
         where_string, query_params = self.collect_where_string(pk_data)
         query = f"""
             DELETE FROM {self._table} 
@@ -150,6 +195,8 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         result = await self.db_client.execute_stmt(
             query, params=query_params, external_session=self._session, only_one=True
         )
+        if not result:
+            raise DatabaseInstanceNotFoundError(f"Instance for remove not found. Params {pk_data}")
         return self.dto_schema.model_validate(result)
 
     async def add(self, data: CreateSchemaType) -> DtoSchemaType:
@@ -190,23 +237,38 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             all_results.extend(result)
         return [self.dto_schema.model_validate(result) for result in all_results]
 
-    def collect_where_string(self, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def collect_where_string(
+        self, params: dict[str, Any], already_collected_params: dict[str, Any] | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        return self.__collect_where_string_from_repo(
+            repo=self, params=params, already_collected_params=already_collected_params
+        )
+
+    def __collect_where_string_from_repo(
+        self, repo: BaseRepository, params: dict[str, Any], already_collected_params: dict[str, Any] | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        already_collected_params = already_collected_params or {}
         where_string = ""
         query_params: dict[str, Any] = {}
         and_strings = []
         if not params:
             return where_string, query_params
-        model_keys = self.dto_schema.model_fields.keys()
+        key_counter: defaultdict[str, int] = defaultdict(int)
+        model_keys = repo.dto_schema.model_fields.keys()
         for key, value in params.items():
             attr_name, *_lookup_suffix = key.rsplit(self.__LOOKUP_EXPRESSION_DEFAULT_SEPARATOR, maxsplit=1)
             if attr_name not in model_keys:
-                raise AttributeError(f"{self.dto_schema.__name__} dont have attribute {key}")
+                raise AttributeError(f"{repo.dto_schema.__name__} dont have attribute {key}")
             lookup_suffix = _lookup_suffix[0] if _lookup_suffix else self.EQUAL_DEFAULT_LOOKUP_SUFFIX
             if lookup_suffix not in self.LOOKUP_EXPRESSION_OPERATOR_MAP:
                 raise ValueError(f"The search expression suffix - {lookup_suffix} is not supported")
             operator = self.LOOKUP_EXPRESSION_OPERATOR_MAP[lookup_suffix]
-            and_strings.append(f"{attr_name} {operator} " + f":{key}")
-            query_params[key] = value
+            params_key = f"{key}_{key_counter[key]}"
+            if params_key in already_collected_params:
+                params_key = f"{key}_{key_counter[key]}"
+            key_counter[key] += 1
+            and_strings.append(f"{repo._table}.{attr_name} {operator} " + f":{params_key}")
+            query_params[params_key] = value
         return " AND ".join(and_strings), query_params
 
     def collect_order_string(self, order_fields: list[str]) -> str:
@@ -226,5 +288,34 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             order_suffix = _order_suffix[0] if _order_suffix else self.DEFAULT_ORDER_TYPE
             if order_suffix not in self.ORDER_PREFIX_MAP:
                 raise ValueError(f"The order suffix - {order_suffix} is not supported, chose from {[*OrderTypes]}")
-            order_parts.append(f"{attr_name} {self.ORDER_PREFIX_MAP[order_suffix]}".strip())
+            order_parts.append(f"{self._table}.{attr_name} {self.ORDER_PREFIX_MAP[order_suffix]}".strip())
         return ", ".join(order_parts)
+
+    @staticmethod
+    def collect_join_string(
+        joins: list[JoinParams],
+    ) -> str:
+        join_parts = []
+        for join in joins:
+            orig_table, joined_table = join.orig_repo._table, join.joined_repo._table
+            on_parts = [f"{orig_table}.{cond.orig} {cond.operator} {joined_table}.{cond.joined}" for cond in join.on]
+            on_string = " AND ".join(on_parts)
+            join_sql = f"{join.join_type} JOIN {joined_table} ON {on_string}"
+            join_parts.append(join_sql)
+        return " ".join(join_parts)
+
+    def collect_join_where_string(
+        self, joins: list[JoinParams], already_collected_params: dict[str, Any] | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        full_collected_params = already_collected_params or {}
+        join_where_params = {}
+        where_parts = []
+        for join in joins:
+            where_string, where_params = self.__collect_where_string_from_repo(
+                repo=join.joined_repo, params=join.where or {}, already_collected_params=full_collected_params
+            )
+            if where_string:
+                where_parts.append(where_string)
+                join_where_params.update(where_params)
+                full_collected_params.update(where_params)
+        return " AND ".join(where_parts), join_where_params

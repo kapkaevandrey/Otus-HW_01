@@ -17,6 +17,7 @@ dependencies = [
     "pydantic[email]>=2.12.5",
     "pyjwt>=2.12.1",
     "python-json-logger>=4.1.0",
+    "redis>=7.4.0",
     "sqlalchemy>=2.0.47",
     "uvicorn>=0.44.0",
 ]

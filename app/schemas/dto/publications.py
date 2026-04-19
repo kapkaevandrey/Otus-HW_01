@@ -18,8 +18,9 @@ class UserPublicationDto(EmptyBaseSchema):
 
 class UserPublicationCreateSchema(EmptyBaseSchema):
     user_id: UUID
+    created_at: dt.datetime = Field(default_factory=utcnow)
     text: str
-    is_draft: bool
+    is_draft: bool = False
 
 
 class UserPublicationUpdateSchema(EmptyBaseSchema):

@@ -1,5 +1,6 @@
 from .auth import AuthTokenInfo, UserData
 from .base import BaseServiceResponse
+from .post import GetPostServiceResponseSchema, PostCreateServiceSchema, PostUpdateServiceSchema
 from .user import (
     AccessRefreshServiceResponse,
     AuthUserServiceResponse,
@@ -24,4 +25,7 @@ __all__ = [
     "AccessRefreshServiceResponse",
     "AuthTokenInfo",
     "UserData",
+    "PostUpdateServiceSchema",
+    "PostCreateServiceSchema",
+    "GetPostServiceResponseSchema",
 ]
