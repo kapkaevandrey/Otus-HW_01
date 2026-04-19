@@ -8,9 +8,10 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
-from app.exceptions import ConnectionDbError
+from app.core.enums import Tables
+from app.schemas.dto import UserDto, UserFriendDto, UserPublicationDto
 
-from .repos import BaseRepository, UserRepo
+from .repos import BaseRepository, UserFriendsRepo, UserPublicationRepo, UserRepo
 
 
 class UnitOfWork:
@@ -18,17 +19,33 @@ class UnitOfWork:
         self.db_client = db_client
         self._logger = logging.getLogger(__name__)
         self._session: AsyncSession | None = None
-        self._user_repo = UserRepo(db_client)
+        self._user_repo = UserRepo(db_client=db_client, table=Tables.users, dto_schema=UserDto)
+        self._user_friends_repo = UserFriendsRepo(
+            db_client=db_client, table=Tables.users_friends, dto_schema=UserFriendDto
+        )
+        self._user_publication_repo = UserPublicationRepo(
+            db_client=db_client, table=Tables.users_publications, dto_schema=UserPublicationDto
+        )
 
     @property
     def repositories(self) -> list[BaseRepository]:
         return [
             self._user_repo,
+            self._user_friends_repo,
+            self._user_publication_repo,
         ]
 
     @property
     def user_repo(self) -> UserRepo:
         return self._user_repo
+
+    @property
+    def user_friends_repo(self) -> UserFriendsRepo:
+        return self._user_friends_repo
+
+    @property
+    def user_publication_repo(self) -> UserPublicationRepo:
+        return self._user_publication_repo
 
     @property
     def logger(self) -> Logger:
@@ -52,10 +69,6 @@ class UnitOfWork:
                     self.logger.debug("Transaction: %s commited", transaction_id)
                 except Exception:
                     await session.rollback()
-                    self.logger.debug("Transaction: %s aborted", transaction_id)
-                    raise
-                except ConnectionDbError:
-                    await self.db_client.refresh_read_write_consistency()
                     self.logger.debug("Transaction: %s aborted", transaction_id)
                     raise
                 finally:
@@ -87,10 +100,6 @@ class UnitOfWork:
             self.logger.debug("Transaction: %s commited", transaction_id)
         except Exception:
             await session.rollback()
-            self.logger.debug("Transaction: %s aborted", transaction_id)
-            raise
-        except ConnectionDbError:
-            await self.db_client.refresh_read_write_consistency()
             self.logger.debug("Transaction: %s aborted", transaction_id)
             raise
         finally:

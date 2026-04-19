@@ -34,3 +34,18 @@ class UserUpdateSchema(EmptyBaseSchema):
     birthdate: dt.date | None = None
     biography: str | None = None
     city: str | None = None
+
+
+class UserFriendDto(EmptyBaseSchema):
+    user_id: UUID
+    friend_id: UUID
+    created_at: dt.datetime
+
+
+class UserFriendCreateSchema(EmptyBaseSchema):
+    user_id: UUID
+    friend_id: UUID
+
+
+class UserFriendUpdateSchema(EmptyBaseSchema):
+    """Update operation not implemented"""

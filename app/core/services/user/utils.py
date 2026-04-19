@@ -11,7 +11,7 @@ class UserUtils(ServiceUtils):
     USER_NOT_FOUND_MESSAGE = "User not found"
 
     async def get_user_by_id(self, user_id: UUID, uow: UnitOfWork) -> UserDto:
-        if not (user_dto := await uow.user_repo.get(user_id=user_id)):
+        if not (user_dto := await uow.user_repo.get({"id": user_id})):
             raise BaseServiceError(
                 status=HTTPStatus.NOT_FOUND,
                 error_message=self.USER_NOT_FOUND_MESSAGE,

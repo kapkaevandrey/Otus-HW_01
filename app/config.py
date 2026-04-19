@@ -35,6 +35,7 @@ class AuthSettings(EmptyBaseSettings):
     JWT_ACCESS_EXP_SECONDS: int = 60 * 60
     JWT_REFRESH_EXP_SECONDS: int = 7 * 24 * 60 * 60
     AUTH_TOKEN_TYPE: str = "Bearer"
+    AUTH_HEADER_KEY: str = "Authorization"
 
 
 class RedisSettings(EmptyBaseSettings):

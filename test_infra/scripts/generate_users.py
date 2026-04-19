@@ -42,7 +42,7 @@ random.shuffle(ALL_PAIRS)
 async def main():
     conn = await asyncpg.connect(**DB_CONFIG)
 
-    print("Cleaning table...")
+    print("Cleaning TABLE...")
     await conn.execute(f"TRUNCATE {TABLE_NAME} RESTART IDENTITY;")
 
     print("Generating and inserting records...")

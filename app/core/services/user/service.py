@@ -59,7 +59,11 @@ class UserService(BaseService):
         self, first_name: str, second_name: str
     ) -> BaseServiceResponse[list[GetUserServiceResponse]]:
         response = BaseServiceResponse[list[GetUserServiceResponse]]()
+        first_name = first_name if first_name.endswith("%") else f"{first_name}%"
+        second_name = second_name if second_name.endswith("%") else f"{second_name}%"
         async with self.context.uow.transaction(read_only=True) as uow:
-            dtos = await uow.user_repo.search_by_first_name_last_name(first_name, second_name)
+            dtos = await uow.user_repo.get_by_attributes(
+                {"first_name__like": first_name, "second_name__like": second_name}
+            )
             response.result = [GetUserServiceResponse.model_validate(dto) for dto in dtos]
         return response

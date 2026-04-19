@@ -9,7 +9,7 @@ from sqlalchemy import URL, Executable, Result, text
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.exceptions import ConnectionDbError, DatabaseError
+from app.exceptions import DatabaseError
 
 
 class SessionOperations(StrEnum):
@@ -190,7 +190,8 @@ class SQLAlchemyAsyncDbBaseClient(ABC):
                 return await session.execute(stmt, params)
             except Exception as exc:
                 if not self.is_retryable_error(exc):
-                    raise ConnectionDbError from exc
+                    await self.refresh_read_write_consistency()
+                    raise exc
                 if trie == tries - 1:
                     exception = exc
                     self.logger.error(self.DB_ERROR_MESSAGE.format(exc=exception), exc_info=True)

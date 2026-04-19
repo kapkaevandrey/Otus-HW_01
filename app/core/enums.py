@@ -12,4 +12,5 @@ class ScopeType(StrEnum):
 
 class Tables(StrEnum):
     users = "users"
-    user_tokens = "user_tokens"
+    users_friends = "users_friends"
+    users_publications = "users_publications"
