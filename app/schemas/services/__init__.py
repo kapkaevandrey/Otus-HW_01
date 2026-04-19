@@ -1,3 +1,4 @@
+from .auth import AuthTokenInfo, UserData
 from .base import BaseServiceResponse
 from .user import (
     AccessRefreshServiceResponse,
@@ -21,4 +22,6 @@ __all__ = [
     "TokenSchema",
     "RefreshUserToken",
     "AccessRefreshServiceResponse",
+    "AuthTokenInfo",
+    "UserData",
 ]

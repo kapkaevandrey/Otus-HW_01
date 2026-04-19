@@ -29,5 +29,13 @@ class DatabaseError(Exception):
     pass
 
 
+class DatabaseInstanceNotFoundError(Exception):
+    pass
+
+
+class DatabaseMultiplyResultError(Exception):
+    pass
+
+
 class ConnectionDbError(DatabaseError):
     pass

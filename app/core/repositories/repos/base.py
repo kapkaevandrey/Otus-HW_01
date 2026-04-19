@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
 from app.core.enums import StrEnum
+from app.exceptions import DatabaseInstanceNotFoundError, DatabaseMultiplyResultError
 
 
 DtoSchemaType = TypeVar("DtoSchemaType", bound=BaseModel)
@@ -45,7 +46,7 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         LookupExpressionSuffixes.EQ: "=",
         LookupExpressionSuffixes.NEQ: "!=",
         LookupExpressionSuffixes.IS: "IS",
-        LookupExpressionSuffixes.IS_NOT: "IS_NOT",
+        LookupExpressionSuffixes.IS_NOT: "IS NOT",
         LookupExpressionSuffixes.I_LIKE: "ILIKE",
         LookupExpressionSuffixes.LIKE: "LIKE",
     }
@@ -83,6 +84,26 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         result = await self.db_client.execute_stmt(stmt, params=query_params, only_one=True)
         return result[key]
 
+    async def exists(
+        self,
+        where_params: dict[str, Any] | None = None,
+    ) -> bool:
+        _where_params = where_params or {}
+        where_string, query_params = self.collect_where_string(_where_params)
+        stmt = f"""
+            SELECT EXISTS(
+                SELECT 1
+                FROM {self._table}
+                {f"WHERE {where_string}" if where_string else ""}
+            ) AS exists
+        """.strip()
+        result = await self.db_client.execute_stmt(
+            stmt,
+            params=query_params,
+            only_one=True,
+        )
+        return bool(result["exists"])
+
     async def get_by_attributes(
         self,
         where_params: dict[str, Any] | None = None,
@@ -113,8 +134,23 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
     async def get(self, pk_data: dict[str, Any]) -> DtoSchemaType | None:
         results = await self.get_by_attributes(where_params=pk_data, limit=2)
         if len(results) > 1:
-            raise ValueError(f"More than one result found - {results}")
+            raise DatabaseMultiplyResultError(f"More than one result found - {results}")
         return self.dto_schema.model_validate(results[0]) if results else None
+
+    async def remove(self, pk_data: dict[str, Any]) -> DtoSchemaType:
+        dto = await self.get(pk_data)
+        if not dto:
+            raise DatabaseInstanceNotFoundError(f"Instance for remove not found. Params {pk_data}")
+        where_string, query_params = self.collect_where_string(pk_data)
+        query = f"""
+            DELETE FROM {self._table} 
+            WHERE {where_string} 
+            RETURNING *
+        """
+        result = await self.db_client.execute_stmt(
+            query, params=query_params, external_session=self._session, only_one=True
+        )
+        return self.dto_schema.model_validate(result)
 
     async def add(self, data: CreateSchemaType) -> DtoSchemaType:
         insert_values = data.model_dump()

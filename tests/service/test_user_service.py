@@ -1,12 +1,16 @@
+import datetime as dt
 import random as rnd
+from http import HTTPStatus
 from uuid import uuid4
 
+import jwt
 import pytest
 from faker import Faker
 
-from app.core.services import UserService
-from app.schemas.dto import UserCreateSchema
-from app.schemas.services import GetUserServiceResponse
+from app.core.enums import ScopeType
+from app.core.services import AuthUtils, UserService
+from app.schemas.dto import UserCreateSchema, UserFriendCreateSchema
+from app.schemas.services import AuthTokenInfo, GetUserServiceResponse
 
 
 @pytest.mark.parametrize("tries", list(range(10)))
@@ -35,3 +39,131 @@ async def test_search_user(context, faker: Faker, tries: int):
     founded_map = {el.id: el for el in founded}
     for el in sorted(service_response.result, key=lambda el: el.id):
         assert GetUserServiceResponse.model_validate(founded_map[el.id]) == el
+
+
+@pytest.mark.parametrize("already_exists", (True, False))
+async def test_add_friend(context, faker: Faker, already_exists):
+    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
+    uow = context.uow
+    data = [
+        UserCreateSchema(
+            first_name=faker.first_name(),
+            second_name=faker.last_name(),
+            birthdate=dt.date.today(),
+            password="some_password",
+        )
+        for _ in range(2)
+    ]
+    user, friend = await uow.user_repo.add_batch(data)
+    if already_exists:
+        await uow.user_friends_repo.add(UserFriendCreateSchema(user_id=user.id, friend_id=friend.id))
+    token = jwt.encode(
+        algorithm="HS256", payload={"sub": user.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
+    )
+    service = UserService(context)
+    service_response = await service.add_to_friends(
+        friend_id=friend.id, auth_header=f"Bearer {token}", auth_info=auth_info, auth_utils=AuthUtils()
+    )
+    assert service_response.is_success
+    assert service_response.status == HTTPStatus.CREATED
+    assert await uow.user_friends_repo.exists({"user_id": user.id, "friend_id": friend.id})
+
+
+async def test_add_friend_user_not_found(context, faker: Faker):
+    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
+    uow = context.uow
+    data = [
+        UserCreateSchema(
+            first_name=faker.first_name(),
+            second_name=faker.last_name(),
+            birthdate=dt.date.today(),
+            password="some_password",
+        )
+        for _ in range(2)
+    ]
+    user, friend = await uow.user_repo.add_batch(data)
+    token = jwt.encode(
+        algorithm="HS256", payload={"sub": uuid4().hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
+    )
+    service = UserService(context)
+    service_response = await service.add_to_friends(
+        friend_id=friend.id, auth_header=f"Bearer {token}", auth_info=auth_info, auth_utils=AuthUtils()
+    )
+    assert service_response.is_success is False
+    assert service_response.status == HTTPStatus.NOT_FOUND
+    assert service_response.error_message == service.utils.USER_NOT_FOUND_MESSAGE
+
+
+async def test_friend_not_found(context, faker: Faker):
+    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
+    uow = context.uow
+    data = [
+        UserCreateSchema(
+            first_name=faker.first_name(),
+            second_name=faker.last_name(),
+            birthdate=dt.date.today(),
+            password="some_password",
+        )
+        for _ in range(2)
+    ]
+    user, friend = await uow.user_repo.add_batch(data)
+    token = jwt.encode(
+        algorithm="HS256", payload={"sub": user.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
+    )
+    service = UserService(context)
+    service_response = await service.add_to_friends(
+        friend_id=uuid4(), auth_header=f"Bearer {token}", auth_info=auth_info, auth_utils=AuthUtils()
+    )
+    assert service_response.is_success is False
+    assert service_response.status == HTTPStatus.NOT_FOUND
+    assert service_response.error_message == service.utils.USER_NOT_FOUND_MESSAGE
+
+
+async def test_remove_friend(context, faker: Faker):
+    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
+    uow = context.uow
+    data = [
+        UserCreateSchema(
+            first_name=faker.first_name(),
+            second_name=faker.last_name(),
+            birthdate=dt.date.today(),
+            password="some_password",
+        )
+        for _ in range(2)
+    ]
+    user, friend = await uow.user_repo.add_batch(data)
+    await uow.user_friends_repo.add(UserFriendCreateSchema(user_id=user.id, friend_id=friend.id))
+    token = jwt.encode(
+        algorithm="HS256", payload={"sub": user.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
+    )
+    service = UserService(context)
+    service_response = await service.remove_from_friends(
+        friend_id=friend.id, auth_header=f"Bearer {token}", auth_info=auth_info, auth_utils=AuthUtils()
+    )
+    assert service_response.is_success is True
+    assert service_response.status == HTTPStatus.NO_CONTENT
+    assert (await uow.user_friends_repo.exists(where_params={"friend_id": friend.id, "user_id": user.id})) is False
+
+
+async def test_remove_friend_not_found(context, faker: Faker):
+    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
+    uow = context.uow
+    data = [
+        UserCreateSchema(
+            first_name=faker.first_name(),
+            second_name=faker.last_name(),
+            birthdate=dt.date.today(),
+            password="some_password",
+        )
+        for _ in range(2)
+    ]
+    user, friend = await uow.user_repo.add_batch(data)
+    token = jwt.encode(
+        algorithm="HS256", payload={"sub": user.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
+    )
+    service = UserService(context)
+    service_response = await service.remove_from_friends(
+        friend_id=friend.id, auth_header=f"Bearer {token}", auth_info=auth_info, auth_utils=AuthUtils()
+    )
+    assert service_response.is_success is False
+    assert service_response.status == HTTPStatus.NOT_FOUND

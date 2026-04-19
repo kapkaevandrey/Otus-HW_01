@@ -1,16 +1,18 @@
 import datetime as dt
 from http import HTTPStatus
 from string import ascii_letters, ascii_uppercase, digits
+from typing import Any
 from uuid import UUID
 
 import bcrypt
 import jwt
+from pydantic import ValidationError
 
 from app.config import AuthSettings
 from app.core.enums import ScopeType
 from app.core.services.utils import ServiceUtils
 from app.exceptions import BaseServiceError
-from app.schemas.services import AccessRefreshServiceResponse, TokenSchema
+from app.schemas.services import AccessRefreshServiceResponse, AuthTokenInfo, TokenSchema, UserData
 
 
 class AuthUtils(ServiceUtils):
@@ -18,6 +20,14 @@ class AuthUtils(ServiceUtils):
     WRONG_PASSWORD = "Не верное значение пароля"
     DEFAULT_AVAILABLE_SYMBOLS = set(ascii_letters + digits + ",.%$@-")
     DEFAULT_NEED_SYMBOLS = [set(ascii_uppercase), set(",.%$@-"), set(digits)]
+    USER_NOT_AUTHORIZED_MESSAGE = "User is not authorized"
+    WRONG_TOKEN_TYPE_MESSAGE = "Wrong token type"
+    TOKEN_REQUIRED_MESSAGE = "Token required"
+    INVALID_TOKEN_FORMAT_MESSAGE = "Invalid token format {error}"
+    INVALID_JWT_TOKEN_MESSAGE = "Invalid JWT token"
+    INVALID_JWT_PAYLOAD_MESSAGE = "Invalid JWT payload"
+    INVALID_JWT_SCOPE_MESSAGE = "Invalid JWT scope"
+    INVALID_TOKEN_SCHEMA_MESSAGE = "Token or scheme is not valid"
 
     @staticmethod
     def get_hash_password(password: str) -> str:
@@ -79,3 +89,49 @@ class AuthUtils(ServiceUtils):
             status=HTTPStatus.BAD_REQUEST,
             error_message=self.WRONG_PASSWORD,
         )
+
+    def get_user_data_from_header_string(
+        self,
+        auth_header: str,
+        auth_info: AuthTokenInfo,
+        scope_check: ScopeType | None = None,
+    ) -> UserData:
+        token = self.get_token_from_header_key(auth_header, auth_info)
+        user_data = self._get_user_data_from_jwt(jwt_token=token, alg=auth_info.alg, secret=auth_info.public_key)
+        if scope_check and scope_check != user_data.scope:
+            raise BaseServiceError(
+                status=HTTPStatus.UNAUTHORIZED,
+                error_message=self.INVALID_JWT_SCOPE_MESSAGE,
+            )
+        return user_data
+
+    def get_token_from_header_key(self, auth_header: str, auth_info: AuthTokenInfo) -> str:
+        if not auth_header or not isinstance(auth_header, str):
+            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.USER_NOT_AUTHORIZED_MESSAGE)
+        scheme, *token_parts = auth_header.split(" ", 1)
+        if (auth_info.token_type and scheme.lower().strip() != auth_info.token_type.lower().strip()) or not token_parts:
+            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.INVALID_TOKEN_SCHEMA_MESSAGE)
+        return token_parts[0]
+
+    def _get_user_data_from_jwt(self, jwt_token: str, alg: str, secret: str | None) -> UserData:
+        payload = self._get_jwt_payload(jwt_token, alg, secret)
+        try:
+            return UserData.model_validate(payload)
+        except ValidationError as error:
+            self.logger.error(self.INVALID_JWT_PAYLOAD_MESSAGE)
+            raise BaseServiceError(
+                status=HTTPStatus.UNAUTHORIZED,
+                error_message=self.INVALID_JWT_PAYLOAD_MESSAGE,
+                error_details={"errors": error.errors()},
+            ) from error
+
+    def _get_jwt_payload(self, jwt_token: str, alg: str, secret: str | None) -> dict:
+        decode_params: dict[str, Any] = {"key": secret} if secret else {"options": {"verify_signature": False}}
+        try:
+            decode_params["algorithms"] = alg
+            payload = jwt.decode(jwt_token, **decode_params)
+            return payload
+        except jwt.InvalidTokenError as error:
+            error_message = self.INVALID_TOKEN_FORMAT_MESSAGE.format(error=error)
+            self.logger.error(error_message)
+            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=error_message) from error
