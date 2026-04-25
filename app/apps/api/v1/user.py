@@ -11,7 +11,7 @@ from app.schemas.services import GetUserServiceResponse, RegisterUserData, Regis
 from app.schemas.types import NotEmptyString
 
 
-users_router = APIRouter(prefix="/user")
+users_router = APIRouter(prefix="/user", tags=["User"])
 
 
 @users_router.post("/register", status_code=HTTPStatus.OK, response_model=RegisterUserServiceResponse)

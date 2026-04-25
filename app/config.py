@@ -53,11 +53,16 @@ class RedisSettings(EmptyBaseSettings):
 
 class KafkaSettings(EmptyBaseSettings):
     KAFKA_BROKERS: str = "kafka:9093"
+    KAFKA_GROUP_ID: str = "otus"
     KAFKA_SECURITY_PROTOCOL: str = "PLAINTEXT"
     KAFKA_SASL_MECHANISM: str = "PLAIN"
     KAFKA_SASL_PLAIN_USERNAME: str | None = None
     KAFKA_SASL_PLAIN_PASSWORD: str | None = None
     KAFKA_MAX_REQUEST_SIZE_BYTES: int = 1 * 1024 * 1024
+    KAFKA_MAX_POOL_INTERVAL: int = 30000  # 0.5 min
+
+    SERVICE_USER_EVENT_TOPIC: str = "social.user.events"
+    SERVICE_USER_PUBLICATION_TOPIC: str = "social.user_publications.events"
 
 
 class DbSettings(EmptyBaseSettings):
@@ -113,3 +118,4 @@ app_settings = AppSettings()
 auth_settings = AuthSettings()
 db_settings = DbSettings()
 redis_settings = RedisSettings()
+kafka_settings = KafkaSettings()

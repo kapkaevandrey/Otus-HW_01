@@ -12,7 +12,13 @@ from app.config import AuthSettings
 from app.core.enums import ScopeType
 from app.core.services.utils import ServiceUtils
 from app.exceptions import BaseServiceError
-from app.schemas.services import AccessRefreshServiceResponse, AuthTokenInfo, TokenSchema, UserData
+from app.schemas.services import (
+    AccessRefreshServiceResponse,
+    AuthCheckTokenData,
+    AuthTokenInfo,
+    TokenSchema,
+    UserTokenData,
+)
 
 
 class AuthUtils(ServiceUtils):
@@ -90,33 +96,10 @@ class AuthUtils(ServiceUtils):
             error_message=self.WRONG_PASSWORD,
         )
 
-    def get_user_data_from_header_string(
-        self,
-        auth_header: str,
-        auth_info: AuthTokenInfo,
-        scope_check: ScopeType | None = None,
-    ) -> UserData:
-        token = self.get_token_from_header_key(auth_header, auth_info)
-        user_data = self._get_user_data_from_jwt(jwt_token=token, alg=auth_info.alg, secret=auth_info.public_key)
-        if scope_check and scope_check != user_data.scope:
-            raise BaseServiceError(
-                status=HTTPStatus.UNAUTHORIZED,
-                error_message=self.INVALID_JWT_SCOPE_MESSAGE,
-            )
-        return user_data
-
-    def get_token_from_header_key(self, auth_header: str, auth_info: AuthTokenInfo) -> str:
-        if not auth_header or not isinstance(auth_header, str):
-            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.USER_NOT_AUTHORIZED_MESSAGE)
-        scheme, *token_parts = auth_header.split(" ", 1)
-        if (auth_info.token_type and scheme.lower().strip() != auth_info.token_type.lower().strip()) or not token_parts:
-            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.INVALID_TOKEN_SCHEMA_MESSAGE)
-        return token_parts[0]
-
-    def _get_user_data_from_jwt(self, jwt_token: str, alg: str, secret: str | None) -> UserData:
+    def get_user_data_from_jwt(self, jwt_token: str, alg: str, secret: str | None) -> UserTokenData:
         payload = self._get_jwt_payload(jwt_token, alg, secret)
         try:
-            return UserData.model_validate(payload)
+            return UserTokenData.model_validate(payload)
         except ValidationError as error:
             self.logger.error(self.INVALID_JWT_PAYLOAD_MESSAGE)
             raise BaseServiceError(
@@ -135,3 +118,17 @@ class AuthUtils(ServiceUtils):
             error_message = self.INVALID_TOKEN_FORMAT_MESSAGE.format(error=error)
             self.logger.error(error_message)
             raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=error_message) from error
+
+    def get_token_for_headers(self, headers: dict[str, str], auth_info: AuthCheckTokenData) -> str:
+        raw_token = None
+        header_key = auth_info.header_key.strip().lower()
+        for key, value in headers.items():
+            if key.strip().lower() == header_key:
+                raw_token = value
+                break
+        if not raw_token or not isinstance(raw_token, str):
+            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.INVALID_JWT_TOKEN_MESSAGE)
+        scheme, *token_parts = raw_token.split(" ", 1)
+        if scheme != auth_info.token_type or not token_parts:
+            raise BaseServiceError(status=HTTPStatus.UNAUTHORIZED, error_message=self.INVALID_TOKEN_SCHEMA_MESSAGE)
+        return token_parts[0]

@@ -10,6 +10,13 @@ class AuthTokenInfo(EmptyBaseSchema):
     token_type: str | None = None
 
 
-class UserData(EmptyBaseSchema):
+class AuthCheckTokenData(EmptyBaseSchema):
+    header_key: str
+    alg: str
+    public_key: str | None = None
+    token_type: str | None = None
+
+
+class UserTokenData(EmptyBaseSchema):
     sub: UUID
     scope: ScopeType

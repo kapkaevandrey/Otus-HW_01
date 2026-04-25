@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 from alembic import command
@@ -8,15 +10,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.config import db_settings
-from app.core.clients import SQLAlchemyAsyncPgClient
+from app.config import db_settings, redis_settings
+from app.core.clients import RedisClient, SQLAlchemyAsyncPgClient
 from app.core.containers.context import Context, get_context
 from app.server import app
 
 
-pytest_plugins = [
-    "tests.fixtures.instances",
-]
+pytest_plugins = ["tests.fixtures.instances", "tests.fixtures.mock_objects"]
 
 
 TEST_DB_NAME = "_test_db"
@@ -33,6 +33,17 @@ TestSessionMaker = async_sessionmaker(async_test_engine, expire_on_commit=False,
 @pytest.fixture()
 def db_client() -> SQLAlchemyAsyncPgClient:
     return SQLAlchemyAsyncPgClient.from_settings(db_settings)
+
+
+@pytest.fixture
+async def redis_client() -> AsyncGenerator[RedisClient, Any]:
+    client = RedisClient.from_settings(redis_settings)
+    await client.flushdb()
+    try:
+        yield client
+    finally:
+        await client.flushdb()
+        await client.aclose()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -88,11 +99,11 @@ def async_session_maker() -> async_sessionmaker[AsyncSession]:
 
 
 @pytest.fixture()
-async def context(
-    db_client: SQLAlchemyAsyncPgClient,
-) -> Context:
+async def context(db_client: SQLAlchemyAsyncPgClient, kafka_producer_mock_client, redis_client) -> Context:
     context = Context(
         db_client=db_client,
+        kafka_producer=kafka_producer_mock_client,
+        redis_client=redis_client,
     )
 
     return context

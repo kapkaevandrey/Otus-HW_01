@@ -3,14 +3,11 @@ import random as rnd
 from http import HTTPStatus
 from uuid import uuid4
 
-import jwt
 from faker import Faker
 
-from app.core.enums import ScopeType
-from app.core.services import AuthUtils, PostService, UserUtils
+from app.core.services import PostService, UserUtils
 from app.schemas.dto import UserFriendCreateSchema, UserPublicationCreateSchema
 from app.schemas.services import (
-    AuthTokenInfo,
     GetPostServiceResponseSchema,
     PostCreateServiceSchema,
     PostUpdateServiceSchema,
@@ -20,17 +17,9 @@ from app.schemas.services import (
 async def test_add_post(context, faker: Faker, user_one):
     uow = context.uow
     post_data = PostCreateServiceSchema(text=faker.text())
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.create_post(
-        data=post_data,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
-        user_utils=UserUtils(),
+        data=post_data, user_id=user_one.id, user_utils=UserUtils(), event_topic="topic"
     )
     assert service_response.is_success
     assert service_response.status == HTTPStatus.CREATED
@@ -39,17 +28,9 @@ async def test_add_post(context, faker: Faker, user_one):
 
 async def test_add_post_user_not_found(context, faker: Faker):
     post_data = PostCreateServiceSchema(text=faker.text())
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": uuid4().hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.create_post(
-        data=post_data,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
-        user_utils=UserUtils(),
+        data=post_data, user_id=uuid4(), user_utils=UserUtils(), event_topic="topic"
     )
     assert service_response.is_success is False
     assert service_response.status == HTTPStatus.NOT_FOUND
@@ -61,16 +42,11 @@ async def test_update_post(context, faker: Faker, user_one):
         UserPublicationCreateSchema(text=faker.text(), user_id=user_one.id, is_draft=False)
     )
     update_data = PostUpdateServiceSchema(text=uuid4().hex, id=post.id)
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.update_post(
+        user_id=user_one.id,
         data=update_data,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
+        event_topic="topic",
     )
     assert service_response.is_success is True
     assert service_response.status == HTTPStatus.OK
@@ -84,16 +60,11 @@ async def test_update_other_user_post(context, faker: Faker, user_one, user_two)
         UserPublicationCreateSchema(text=faker.text(), user_id=user_two.id, is_draft=False)
     )
     update_data = PostUpdateServiceSchema(text=uuid4().hex, id=post.id)
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.update_post(
+        user_id=user_one.id,
         data=update_data,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
+        event_topic="topic",
     )
     assert service_response.is_success is False
     assert service_response.status == HTTPStatus.NOT_FOUND
@@ -105,16 +76,11 @@ async def test_remove_user_post(context, faker: Faker, user_one):
     post = await uow.user_publication_repo.add(
         UserPublicationCreateSchema(text=faker.text(), user_id=user_one.id, is_draft=False)
     )
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.remove_post(
         post_id=post.id,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
+        user_id=user_one.id,
+        event_topic="topic",
     )
     assert service_response.is_success is True
     assert service_response.status == HTTPStatus.NO_CONTENT
@@ -126,16 +92,11 @@ async def test_remove_other_user_post(context, faker: Faker, user_one, user_two)
     post = await uow.user_publication_repo.add(
         UserPublicationCreateSchema(text=faker.text(), user_id=user_two.id, is_draft=False)
     )
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     service = PostService(context)
     service_response = await service.remove_post(
         post_id=post.id,
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
+        user_id=user_one.id,
+        event_topic="topic",
     )
     assert service_response.is_success is False
     assert service_response.status == HTTPStatus.NOT_FOUND
@@ -144,10 +105,6 @@ async def test_remove_other_user_post(context, faker: Faker, user_one, user_two)
 
 async def test_friends_feeds(user_one, context, generate_user):
     uow = context.uow
-    auth_info = AuthTokenInfo(alg="HS256", public_key="secret", token_type="Bearer")
-    token = jwt.encode(
-        algorithm="HS256", payload={"sub": user_one.id.hex, "scope": ScopeType.ACCESS}, key=auth_info.public_key
-    )
     start_time = dt.datetime(year=2000, month=1, minute=1, day=1, tzinfo=dt.UTC)
     timestamps = [start_time + dt.timedelta(minutes=i) for i in range(100_000)]
     users = await generate_user(uow, 1000)
@@ -177,14 +134,14 @@ async def test_friends_feeds(user_one, context, generate_user):
     ]
     service = PostService(context)
     service_response = await service.get_friends_last_posts(
-        auth_header=f"{auth_info.token_type} {token}",
-        auth_info=auth_info,
-        auth_utils=AuthUtils(),
+        user_id=user_one.id,
         user_utils=UserUtils(),
     )
     assert service_response.is_success
     assert service_response.status == HTTPStatus.OK
     assert service_response.result == expected
+    cached_data = await service.utils.get_cached_user_feed(user_one.id, context.redis_client)
+    assert [GetPostServiceResponseSchema.model_validate(el) for el in cached_data.items] == expected
 
 
 async def test_get_post(context, faker: Faker, user_one):

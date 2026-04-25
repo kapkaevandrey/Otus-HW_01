@@ -9,7 +9,7 @@ from pydantic import PositiveInt
 from .exceptions import ImproperlyConfiguredError, RetriesExceededError
 
 
-class SATKafkaConsumer:
+class BaseKafkaConsumer:
     def __init__(
         self,
         consumer_class: type[AIOKafkaConsumer],

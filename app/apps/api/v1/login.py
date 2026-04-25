@@ -9,7 +9,7 @@ from app.core.services import AuthUtils, UserService
 from app.schemas.services import AccessRefreshServiceResponse, LoginUserData
 
 
-auth_router = APIRouter()
+auth_router = APIRouter(tags=["Auth"])
 
 
 @auth_router.post("/login", status_code=HTTPStatus.OK, response_model=AccessRefreshServiceResponse)

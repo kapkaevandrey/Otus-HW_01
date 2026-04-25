@@ -5,6 +5,7 @@ from pydantic import Field
 
 from app.core.consts import POST_MAX_LENGTH
 from app.schemas.base import EmptyBaseSchema
+from app.schemas.dto import UserPublicationDto
 from app.schemas.types import NotEmptyString
 
 
@@ -23,3 +24,8 @@ class GetPostServiceResponseSchema(EmptyBaseSchema):
     user_id: UUID = Field(serialization_alias="author_user_id")
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+class CachedFeedPostsSchema(EmptyBaseSchema):
+    ts: dt.datetime
+    items: list[UserPublicationDto]
