@@ -86,9 +86,9 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
 
     async def count(
         self,
-        where_params: dict[str, Any] | None = None,
+        where: dict[str, Any] | None = None,
     ) -> int:
-        _where_params = where_params or {}
+        _where_params = where or {}
         where_string, query_params = self.collect_where_string(_where_params)
         key = "total"
         stmt = f"SELECT COUNT(*) AS {key} FROM {self._table}"
@@ -99,9 +99,9 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
 
     async def exists(
         self,
-        where_params: dict[str, Any] | None = None,
+        where: dict[str, Any] | None = None,
     ) -> bool:
-        _where_params = where_params or {}
+        _where_params = where or {}
         where_string, query_params = self.collect_where_string(_where_params)
         stmt = f"""
             SELECT EXISTS(
@@ -119,18 +119,18 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
 
     async def get_by_attributes(
         self,
-        where_params: dict[str, Any] | None = None,
+        where: dict[str, Any] | None = None,
         joins: list[JoinParams] | None = None,
         order_fields: list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[DtoSchemaType]:
-        _where_params = where_params or {}
+        _where = where or {}
         _order_fields = order_fields or []
         _joins = joins or []
-        where_string, where_params = self.collect_where_string(_where_params)
+        where_string, where = self.collect_where_string(_where)
         join_string = self.collect_join_string(_joins)
-        join_where_string, join_where_params = self.collect_join_where_string(_joins, where_params)
+        join_where_string, join_where_params = self.collect_join_where_string(_joins, where)
         order_string = self.collect_order_string(_order_fields)
         stmt = f"""
             SELECT {self._table}.*
@@ -150,11 +150,49 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         if offset:
             stmt = stmt + f" OFFSET {offset} "
         stmt = stmt.strip()
-        result = await self.db_client.execute_stmt(stmt, {**where_params, **join_where_params})
+        result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params})
         return [self.dto_schema.model_validate(row) for row in result]
 
+    async def get_need_fields(
+        self,
+        fields: list[str],
+        where: dict[str, Any] | None = None,
+        joins: list[JoinParams] | None = None,
+        order_fields: list[str] | None = None,
+        mapped: bool = True,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any] | tuple[Any, ...]]:
+        _where_params = where or {}
+        _order_fields = order_fields or []
+        _joins = joins or []
+        where_string, where = self.collect_where_string(_where_params)
+        join_string = self.collect_join_string(_joins)
+        join_where_string, join_where_params = self.collect_join_where_string(_joins, where)
+        order_string = self.collect_order_string(_order_fields)
+        stmt = f"""
+            SELECT {", ".join(f"{self._table}.{field}" for field in fields)}
+            FROM {self._table}
+            {join_string}
+        """
+        if where_string:
+            stmt = stmt + f" WHERE {where_string} "
+        if join_where_string:
+            prefix = " WHERE " if not where_string else " "
+            where_prefix = " AND " if not prefix else " "
+            stmt = stmt + prefix + where_prefix + f" {join_where_string} "
+        if order_string:
+            stmt = stmt + f" ORDER BY {order_string} "
+        if limit:
+            stmt = stmt + f" LIMIT {limit} "
+        if offset:
+            stmt = stmt + f" OFFSET {offset} "
+        stmt = stmt.strip()
+        result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params}, mapped=mapped)
+        return list(result)
+
     async def get(self, pk_data: dict[str, Any]) -> DtoSchemaType | None:
-        results = await self.get_by_attributes(where_params=pk_data, limit=2)
+        results = await self.get_by_attributes(where=pk_data, limit=2)
         if len(results) > 1:
             raise DatabaseMultiplyResultError(f"More than one result found - {results}")
         return self.dto_schema.model_validate(results[0]) if results else None

@@ -7,7 +7,7 @@ import pytest
 from app.core.enums import ScopeType
 from app.core.services import AuthUtils
 from app.exceptions import BaseServiceError
-from app.schemas.services import AuthTokenInfo, UserTokenData
+from app.schemas.services import UserTokenData
 
 
 @pytest.mark.parametrize("secret", [None, "secret"])

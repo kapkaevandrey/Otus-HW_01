@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.core.clients import BaseKafkaConsumer
 from app.core.containers import Context, get_context
-from app.core.services import PostService
+from app.core.services import PostService, UserUtils
 from app.schemas.services import ServiceEvent
 
 
@@ -20,10 +20,12 @@ class CacheFeedConsumer(BaseKafkaConsumer):
         return get_context()
 
     async def process_message(self, message: ConsumerRecord, context: Any = None) -> None:
-        schema, ts = self.try_get_message_schema(message.value), message.timestamp
+        schema, ts_ms = self.try_get_message_schema(message.value), message.timestamp
         if not schema or schema.event_type not in self.post_service.RECALCULATE_CACHE_EVENTS:
             return
-        service_response = await self.post_service.recalculate_user_feed_from_event(schema, ts)
+        service_response = await self.post_service.recalculate_user_feed_from_event(
+            schema=schema, ts_ms=ts_ms, user_utils=UserUtils()
+        )
         if service_response.is_success:
             self.logger.info("Successfully recalculated user feed cache")
         else:

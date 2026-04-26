@@ -126,13 +126,8 @@ class PostService(BaseService):
 
     @async_use_case()
     async def recalculate_user_feed_from_event(
-        self, schema: ServiceEvent, user_utils: UserUtils, ts: int
+        self, schema: ServiceEvent, user_utils: UserUtils, ts_ms: int
     ) -> BaseServiceResponse[None]:
-        """
-        TODO
-        1) Анализ кэша на временную метку если метка старше метки сообщения то надо скипать
-        """
-
         response = BaseServiceResponse[None](status=HTTPStatus.NO_CONTENT)
         if schema.event_type not in self.RECALCULATE_CACHE_EVENTS:
             raise BaseServiceError(
@@ -141,16 +136,25 @@ class PostService(BaseService):
                 error_details={"event": schema.model_dump(mode="json")},
             )
         if schema.event_type in (EventTypes.ADD_FRIEND, EventTypes.REMOVE_FRIEND):
-            data = UserFriendDto.model_validate(schema.data)
-            await self._get_user_friends_posts_and_cached(
-                user_id=data.user_id, user_utils=user_utils, size=self.FEED_DEFAULT_SIZE
-            )
-        elif (
-            schema.event_type == EventTypes.UPDATE_USER_PUBLICATION
-            or schema.event_type == EventTypes.REMOVE_USER_PUBLICATION
+            user_friend = UserFriendDto.model_validate(schema.data)
+            data = await self.utils.get_cached_user_feed(user_friend.user_id, self.context.redis_client)
+            if data and int(data.ts.timestamp() * 1000) < ts_ms:
+                await self._get_user_friends_posts_and_cached(
+                    user_id=user_friend.user_id, user_utils=user_utils, size=self.FEED_DEFAULT_SIZE
+                )
+        elif schema.event_type in (
+            EventTypes.UPDATE_USER_PUBLICATION,
+            EventTypes.REMOVE_USER_PUBLICATION,
+            EventTypes.ADD_USER_PUBLICATION,
         ):
-            pass
-            # TODO update friends feeds
+            post = UserPublicationDto.model_validate(schema.data)
+            async with self.context.uow.transaction() as uow:
+                followers_ids = await uow.user_friends_repo.get_need_fields(
+                    fields=["user_id"], where={"friend_id": post.user_id}, mapped=False
+                )
+                await self.utils.clear_followers_cache(
+                    users_ids=[row[0] for row in followers_ids], redis_client=self.context.redis_client
+                )
         return response
 
     async def _get_user_friends_posts_and_cached(

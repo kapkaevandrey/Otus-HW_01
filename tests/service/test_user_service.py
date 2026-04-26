@@ -116,7 +116,7 @@ async def test_remove_friend(context, faker: Faker):
     service_response = await service.remove_from_friends(user_id=user.id, friend_id=friend.id, event_topic="topic")
     assert service_response.is_success is True
     assert service_response.status == HTTPStatus.NO_CONTENT
-    assert (await uow.user_friends_repo.exists(where_params={"friend_id": friend.id, "user_id": user.id})) is False
+    assert (await uow.user_friends_repo.exists(where={"friend_id": friend.id, "user_id": user.id})) is False
 
 
 async def test_remove_friend_not_found(context, faker: Faker):

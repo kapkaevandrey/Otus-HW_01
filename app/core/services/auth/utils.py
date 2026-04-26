@@ -15,7 +15,6 @@ from app.exceptions import BaseServiceError
 from app.schemas.services import (
     AccessRefreshServiceResponse,
     AuthCheckTokenData,
-    AuthTokenInfo,
     TokenSchema,
     UserTokenData,
 )

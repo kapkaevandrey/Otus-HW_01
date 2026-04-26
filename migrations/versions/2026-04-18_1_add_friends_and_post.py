@@ -53,6 +53,6 @@ def upgrade():
 
 
 def downgrade():
-    op.execute("""DROP INDEX idx_users_publications_user_id_updated_at""")
+    op.execute("""DROP INDEX idx_users_publications_user_id_created_at""")
     op.execute("""DROP TABLE users_friends""")
     op.execute("""DROP TABLE users_publications""")

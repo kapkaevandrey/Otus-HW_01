@@ -50,6 +50,11 @@ class PostUtils(ServiceUtils):
         ttl = await redis_client.ttl(key)
         return max(ttl, 0)
 
+    async def clear_followers_cache(self, users_ids: list[UUID], redis_client: RedisClient) -> None:
+        keys = [self.REDIS_USER_FRIENDS_FEED_KEY.format(user_id=user_id) for user_id in users_ids]
+        if keys:
+            await redis_client.delete(*keys)
+
     async def set_feed_cache(
         self, user_id: UUID, posts: list[UserPublicationDto], ts: dt.datetime, redis_client: RedisClient, ttl_block: int
     ) -> None:
