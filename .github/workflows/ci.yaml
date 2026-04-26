@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEBUG: "true"
+      REDIS_HOST: "localhost"
       DB_MASTER_HOST: "localhost"
       DB_DATABASE: "otus"
       DB_MASTER_USER: "otus"
@@ -53,6 +54,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U otus -d otus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
