@@ -26,4 +26,5 @@ class AuthService(BaseService):
                 status=HTTPStatus.UNAUTHORIZED,
                 error_message=self.utils.INVALID_JWT_SCOPE_MESSAGE,
             )
+        response.result = user_data
         return response

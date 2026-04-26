@@ -1,4 +1,3 @@
-import asyncio
 from functools import cached_property
 from http import HTTPStatus
 from uuid import UUID
@@ -114,10 +113,8 @@ class PostService(BaseService):
         user_utils: UserUtils,
     ) -> BaseServiceResponse[GetPostServiceResponseSchema]:
         response = BaseServiceResponse[GetPostServiceResponseSchema]()
-        if ttl := await self.utils.is_cache_calculated(user_id, self.context.redis_client):
-            await asyncio.sleep(ttl)
         cached_feed = await self.utils.get_cached_user_feed(user_id, self.context.redis_client)
-        if cached_feed:
+        if cached_feed is not None:
             response.result = [GetPostServiceResponseSchema.model_validate(el) for el in cached_feed.items]
             return response
         posts = await self._get_user_friends_posts_and_cached(user_id, self.FEED_DEFAULT_SIZE, user_utils)

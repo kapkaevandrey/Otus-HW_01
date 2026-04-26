@@ -58,12 +58,10 @@ class PostUtils(ServiceUtils):
     async def set_feed_cache(
         self, user_id: UUID, posts: list[UserPublicationDto], ts: dt.datetime, redis_client: RedisClient, ttl_block: int
     ) -> None:
-        if not posts:
+        if not posts or await self.is_cache_calculated(user_id, redis_client):
             return
         block_key = self.REDIS_USER_FRIENDS_FEED_CALCULATE_CACHE_KEY.format(user_id=user_id)
         cache_key = self.REDIS_USER_FRIENDS_FEED_KEY.format(user_id=user_id)
-        if await self.is_cache_calculated(user_id, redis_client):
-            return
         await redis_client.set(block_key, 1, ex=ttl_block)
         await redis_client.set(cache_key, CachedFeedPostsSchema(items=posts, ts=ts).model_dump_json())
         await redis_client.delete(block_key)
