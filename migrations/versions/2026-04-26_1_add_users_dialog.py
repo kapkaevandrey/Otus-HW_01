@@ -26,7 +26,6 @@ def upgrade():
         peer_low_id UUID NULL,
         peer_high_id UUID NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        last_message_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         
         CONSTRAINT chk_conversations_type CHECK (type IN ('direct', 'group')),
         CONSTRAINT chk_direct_peers_order CHECK (
@@ -63,10 +62,20 @@ def upgrade():
         text TEXT NOT NULL
     );
     """)
+    op.execute("""
+    CREATE INDEX idx_conversation_participants_conversation_id
+    ON conversation_participants (conversation_id);
+    """)
+    op.execute("""
+    CREATE INDEX idx_messages_conversation_sent_at
+    ON messages (conversation_id, sent_at DESC, id DESC);
+    """)
 
 
 
 def downgrade():
+    op.execute("""DROP INDEX idx_messages_conversation_sent_at;""")
+    op.execute("""DROP INDEX idx_conversation_participants_conversation_id;""")
     op.execute("""DROP TABLE messages;""")
     op.execute("""DROP TABLE conversation_participants;""")
     op.execute("""DROP INDEX ux_conversation_direct_pair;""")
