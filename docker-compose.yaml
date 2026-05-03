@@ -7,33 +7,70 @@ services:
     restart: always
     environment:
       ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030"
-      DB_MASTER_HOST: db
+      DB_MASTER_HOST: master
     ports:
       - "8000:8000"
     env_file:
       - dev.env
-    command:
-      ["start", "8000"]
+    command: ["start", "8000"]
     depends_on:
-      valkey:
-        condition: service_healthy
-      db:
-        condition: service_healthy
+      - valkey
+      - master
 
-  db:
-    container_name: db
-    image: postgres:17
+  master:
+    image: citusdata/citus:12.1.6
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_master"
     restart: always
+    labels:
+      - "com.citusdata.role=Master"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: app_db
+      POSTGRES_PASSWORD: app_pswd
+      PGUSER: postgres
+      PGPASSWORD: app_pswd
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_DB=app_db
-      - POSTGRES_PASSWORD=app_pswd
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+    volumes:
+      - citus_master_data:/var/lib/postgresql/data
+
+  worker:
+    image: citusdata/citus:12.1.6
+    restart: always
+    labels:
+      - "com.citusdata.role=Worker"
+    depends_on:
+      - manager
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: app_db
+      POSTGRES_PASSWORD: app_pswd
+      PGUSER: postgres
+      PGPASSWORD: app_pswd
+    command: "/wait-for-manager.sh"
+    volumes:
+      - healthcheck-volume:/healthcheck
+
+  manager:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_manager"
+    image: "citusdata/membership-manager:0.3.0"
+    restart: always
+    depends_on:
+      - master
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: app_db
+      POSTGRES_PASSWORD: app_pswd
+      PGUSER: postgres
+      PGPASSWORD: app_pswd
+    volumes:
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+      - healthcheck-volume:/healthcheck
 
   valkey:
     image: dhi.io/valkey:9
@@ -68,7 +105,7 @@ services:
     container_name: kafka-ui
     image: provectuslabs/kafka-ui:latest
     ports:
-      - 8082:8080
+      - "8082:8080"
     environment:
       DYNAMIC_CONFIG_ENABLED: true
       KAFKA_CLUSTERS_0_NAME: kafka
@@ -76,3 +113,5 @@ services:
 
 volumes:
   kafka_data:
+  citus_master_data:
+  healthcheck-volume:

@@ -53,12 +53,13 @@ def upgrade():
     """)
     op.execute("""
     CREATE TABLE messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         conversation_id UUID NOT NULL,
+        id UUID NOT NULL DEFAULT gen_random_uuid(),
         sender_id UUID NOT NULL,
         sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NULL,
-        text TEXT NOT NULL
+        text TEXT NOT NULL,
+        CONSTRAINT pk_messages PRIMARY KEY (conversation_id, id)
     );
     """)
     op.execute("""
@@ -69,6 +70,30 @@ def upgrade():
     CREATE INDEX idx_messages_conversation_sent_at
     ON messages (conversation_id, sent_at DESC, id DESC);
     """)
+    with op.get_context().autocommit_block():
+        op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'citus') THEN
+                CREATE EXTENSION IF NOT EXISTS citus;
+            END IF;
+        END
+        $$;
+        """)
+        op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus')
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM pg_dist_partition
+                   WHERE logicalrelid = 'messages'::regclass
+               ) THEN
+                PERFORM create_distributed_table('messages', 'conversation_id');
+            END IF;
+        END
+        $$;
+        """)
 
 
 
