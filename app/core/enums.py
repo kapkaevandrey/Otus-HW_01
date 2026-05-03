@@ -10,10 +10,18 @@ class ScopeType(StrEnum):
     REFRESH = "refresh"
 
 
+class ConversationTypes(StrEnum):
+    DIRECT = "direct"
+    GROUP = "group"
+
+
 class Tables(StrEnum):
     users = "users"
     users_friends = "users_friends"
     users_publications = "users_publications"
+    conversations = "conversations"
+    conversation_participants = "conversation_participants"
+    messages = "messages"
 
 
 class EventTypes(StrEnum):

@@ -9,9 +9,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
 from app.core.enums import Tables
-from app.schemas.dto import UserDto, UserFriendDto, UserPublicationDto
+from app.schemas.dto import (
+    ConversationDto,
+    ConversationParticipantsDto,
+    MessageDto,
+    UserDto,
+    UserFriendDto,
+    UserPublicationDto,
+)
 
-from .repos import BaseRepository, UserFriendsRepo, UserPublicationRepo, UserRepo
+from .repos import (
+    BaseRepository,
+    ConversationParticipantsRepo,
+    ConversationRepo,
+    MessageRepo,
+    UserFriendsRepo,
+    UserPublicationRepo,
+    UserRepo,
+)
 
 
 class UnitOfWork:
@@ -26,6 +41,13 @@ class UnitOfWork:
         self._user_publication_repo = UserPublicationRepo(
             db_client=db_client, table=Tables.users_publications, dto_schema=UserPublicationDto
         )
+        self._conversation_repo = ConversationRepo(
+            db_client=db_client, table=Tables.conversations, dto_schema=ConversationDto
+        )
+        self._conversation_participants_repo = ConversationParticipantsRepo(
+            db_client=db_client, table=Tables.conversation_participants, dto_schema=ConversationParticipantsDto
+        )
+        self._message_repo = MessageRepo(db_client=db_client, table=Tables.messages, dto_schema=MessageDto)
 
     @property
     def repositories(self) -> list[BaseRepository]:
@@ -33,6 +55,9 @@ class UnitOfWork:
             self._user_repo,
             self._user_friends_repo,
             self._user_publication_repo,
+            self._conversation_repo,
+            self._conversation_participants_repo,
+            self._message_repo,
         ]
 
     @property
@@ -46,6 +71,18 @@ class UnitOfWork:
     @property
     def user_publication_repo(self) -> UserPublicationRepo:
         return self._user_publication_repo
+
+    @property
+    def message_repo(self) -> MessageRepo:
+        return self._message_repo
+
+    @property
+    def conversation_repo(self) -> ConversationRepo:
+        return self._conversation_repo
+
+    @property
+    def conversation_participants_repo(self) -> ConversationParticipantsRepo:
+        return self._conversation_participants_repo
 
     @property
     def logger(self) -> Logger:

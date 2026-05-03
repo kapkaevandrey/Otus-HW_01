@@ -34,12 +34,6 @@ def async_use_case(
                 return await func(*args, **kwargs)
             except BaseServiceError as e:
                 base_response.set_unsuccessful_from_error(e)
-            # except Exception as e:
-            #     logger.exception(e, exc_info=e)
-            #     base_response.set_unsuccessful(
-            #         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            #         error_message="Internal Server Error",
-            #     )
             return base_response
 
         return wrapper

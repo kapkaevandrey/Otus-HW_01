@@ -39,6 +39,7 @@ services:
     image: dhi.io/valkey:9
     ports:
       - "6379:6379"
+    command: ["valkey-server", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
 

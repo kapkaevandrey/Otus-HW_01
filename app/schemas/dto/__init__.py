@@ -1,3 +1,12 @@
+from .conversation import (
+    ConversationCreateSchema,
+    ConversationDto,
+    ConversationParticipantsCreateSchema,
+    ConversationParticipantsDto,
+    ConversationParticipantsUpdateSchema,
+    ConversationUpdateSchema,
+)
+from .messages import MessageCreateSchema, MessageDto, MessageUpdateSchema
 from .publications import UserPublicationCreateSchema, UserPublicationDto, UserPublicationUpdateSchema
 from .user import (
     UserCreateSchema,
@@ -19,4 +28,13 @@ __all__ = [
     "UserPublicationDto",
     "UserPublicationCreateSchema",
     "UserPublicationUpdateSchema",
+    "ConversationDto",
+    "ConversationCreateSchema",
+    "ConversationUpdateSchema",
+    "ConversationParticipantsDto",
+    "ConversationParticipantsCreateSchema",
+    "ConversationParticipantsUpdateSchema",
+    "MessageDto",
+    "MessageUpdateSchema",
+    "MessageCreateSchema",
 ]

@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter
 
+from .dialog import dialog_router
 from .friend import friends_router
 from .login import auth_router
 from .posts import posts_router
@@ -16,3 +17,4 @@ router.include_router(users_router)
 router.include_router(auth_router)
 router.include_router(friends_router)
 router.include_router(posts_router)
+router.include_router(dialog_router)

@@ -1,5 +1,6 @@
 from .auth import AuthCheckTokenData, AuthTokenInfo, UserTokenData
 from .base import BaseServiceResponse
+from .dialogs import SendMessageServiceResponse, SendMessageServiceSchema
 from .events import ServiceEvent
 from .post import CachedFeedPostsSchema, GetPostServiceResponseSchema, PostCreateServiceSchema, PostUpdateServiceSchema
 from .user import (
@@ -32,4 +33,6 @@ __all__ = [
     "AuthCheckTokenData",
     "ServiceEvent",
     "CachedFeedPostsSchema",
+    "SendMessageServiceSchema",
+    "SendMessageServiceResponse",
 ]
