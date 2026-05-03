@@ -5,6 +5,7 @@ from app.core.services.base import BaseService, async_use_case
 from app.core.services.user import UserUtils
 from app.schemas.dto import MessageCreateSchema
 from app.schemas.services import BaseServiceResponse, SendMessageServiceResponse, SendMessageServiceSchema
+from app.schemas.services.dialogs import DirectMessagesItem
 
 from .utils import DialogUtils
 
@@ -39,7 +40,22 @@ class DialogService(BaseService):
         return response
 
     @async_use_case()
-    async def get_dialog_with_users(self, *, user_first: UUID, user_second: UUID) -> BaseServiceResponse[None]:
-        response = BaseServiceResponse[None]()
-
+    async def get_dialog_with_users(
+        self, *, user_first: UUID, user_second: UUID
+    ) -> BaseServiceResponse[list[DirectMessagesItem]]:
+        response = BaseServiceResponse[list[DirectMessagesItem]]()
+        async with self.context.uow.transaction() as uow:
+            conv = await self.utils.get_direct_users_conversation(user_first, user_second, uow)
+            messages = await uow.message_repo.get_by_attributes(
+                {"conversation_id": conv.id}, order_fields=["sent_at__desc"]
+            )
+            response.result = [
+                DirectMessagesItem(
+                    text=el.text,
+                    sent_at=el.sent_at,
+                    from_user=el.sender_id,
+                    to_user=user_first if user_second == el.sender_id else user_second,
+                )
+                for el in messages
+            ]
         return response

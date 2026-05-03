@@ -9,6 +9,7 @@ from app.core.containers import Context, get_context
 from app.core.services import DialogService, UserUtils
 from app.schemas.api import SendMessageSchema
 from app.schemas.services import SendMessageServiceResponse, SendMessageServiceSchema, UserTokenData
+from app.schemas.services.dialogs import DirectMessagesItem
 
 
 dialog_router = APIRouter(prefix="/dialog", tags=["Dialogs"])
@@ -43,11 +44,11 @@ async def get_users_dialog(
     user_id: UUID,
     user_data: UserTokenData = Depends(get_user_data_access),
     context: Context = Depends(get_context),
-) -> None:
+) -> list[DirectMessagesItem]:
     service = DialogService(context)
     service_response = await service.get_dialog_with_users(
         user_first=user_data.sub,
-        friend_second=user_id,
+        user_second=user_id,
     )
     raise_http_exception_from_service_response(service_response)
-    return None
+    return service_response.result

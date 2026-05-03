@@ -11,6 +11,7 @@ from app.schemas.services import SendMessageServiceSchema
 
 class DialogUtils(ServiceUtils):
     SEND_TO_SELF_ERROR_MESSAGE = "You cant send message to you self"
+    DIALOG_NOT_EXISTS_ERROR_MESSAGE = "Dialog not exists"
 
     def check_message_data(self, data: SendMessageServiceSchema) -> None:
         if data.user_sender == data.user_receiver:
@@ -48,3 +49,14 @@ class DialogUtils(ServiceUtils):
                 for user_id in need_add
             ]
             await uow.conversation_participants_repo.add_batch(data)
+
+    async def get_direct_users_conversation(
+        self, user_first: UUID, user_second: UUID, uow: UnitOfWork
+    ) -> ConversationDto:
+        low_id, high_id = (user_first, user_second) if user_first < user_second else (user_second, user_first)
+        dto = await uow.conversation_repo.get(
+            {"peer_low_id": low_id, "peer_high_id": high_id, "type": ConversationTypes.DIRECT}
+        )
+        if not dto:
+            raise BaseServiceError(status=HTTPStatus.NOT_FOUND, error_message=self.DIALOG_NOT_EXISTS_ERROR_MESSAGE)
+        return dto
