@@ -27,8 +27,6 @@ async def send_message_to_user(
 ) -> SendMessageServiceResponse:
     service = DialogService(context)
     service_response = await service.send_message_to_user(
-        user_sender=user_data.sub,
-        user_reciever=user_id,
         data=SendMessageServiceSchema(text=data.text, user_sender=user_data.sub, user_receiver=user_id),
         user_utils=UserUtils(),
     )
