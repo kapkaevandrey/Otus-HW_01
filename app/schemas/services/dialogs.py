@@ -24,5 +24,5 @@ class SendMessageServiceResponse(EmptyBaseSchema):
 class DirectMessagesItem(EmptyBaseSchema):
     from_user: UUID = Field(serialization_alias="from")
     to_user: UUID = Field(serialization_alias="to")
-    text: UUID
+    text: str
     sent_at: dt.datetime
