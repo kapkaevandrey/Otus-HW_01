@@ -1,3 +1,18 @@
+x-citus-common: &citus-common
+  image: citusdata/citus:12.1.6
+  restart: always
+  environment:
+    POSTGRES_USER: postgres
+    POSTGRES_DB: app_db
+    POSTGRES_PASSWORD: app_pswd
+    PGUSER: postgres
+    PGPASSWORD: app_pswd
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres"]
+    interval: 5s
+    timeout: 5s
+    retries: 5
+
 services:
   app:
     build:
@@ -18,62 +33,57 @@ services:
       - master
 
   master:
-    image: citusdata/citus:12.1.6
-    container_name: "${COMPOSE_PROJECT_NAME:-citus}_master"
-    restart: always
-    labels:
-      - "com.citusdata.role=Master"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: app_db
-      POSTGRES_PASSWORD: app_pswd
-      PGUSER: postgres
-      PGPASSWORD: app_pswd
+    <<: *citus-common
+    container_name: master_db
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     volumes:
       - citus_master_data:/var/lib/postgresql/data
 
   worker:
-    image: citusdata/citus:12.1.6
-    restart: always
-    labels:
-      - "com.citusdata.role=Worker"
-    depends_on:
-      - manager
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: app_db
-      POSTGRES_PASSWORD: app_pswd
-      PGUSER: postgres
-      PGPASSWORD: app_pswd
-    command: "/wait-for-manager.sh"
-    volumes:
-      - healthcheck-volume:/healthcheck
+    <<: *citus-common
 
-  manager:
-    container_name: "${COMPOSE_PROJECT_NAME:-citus}_manager"
-    image: "citusdata/membership-manager:0.3.0"
-    restart: always
+  citus-init:
+    image: citusdata/citus:12.1.6
+    restart: "no"
     depends_on:
-      - master
+      master:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: app_db
-      POSTGRES_PASSWORD: app_pswd
-      PGUSER: postgres
       PGPASSWORD: app_pswd
-    volumes:
-      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
-      - healthcheck-volume:/healthcheck
+      WORKERS: "3"
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        set -e
+        echo "Init coordinator"
+        psql -h master -U postgres -d app_db -c "SELECT citus_set_coordinator_host('master_db', 5432);"
+        for i in $(seq 1 $WORKERS); do
+          host="worker-$i"
+          echo "Waiting for $host"
+          until pg_isready -h $host -U postgres -p 5432 >/dev/null 2>&1; do
+            sleep 2
+          done
+          echo "Register $host"
+          psql -h master -U postgres -d app_db -v ON_ERROR_STOP=1 -c "
+            DO $$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_dist_node WHERE nodename = '$host'
+              ) THEN
+                PERFORM master_add_node('$host', 5432);
+              END IF;
+            END $$;
+          "
+        done
+        echo "Citus init done"
 
   valkey:
     image: dhi.io/valkey:9
+    container_name: redis
     ports:
       - "6379:6379"
     command: ["valkey-server", "--protected-mode", "no"]
@@ -82,6 +92,7 @@ services:
 
   kafka:
     image: dhi.io/kafka:4.1-native
+    container_name: kafka
     ports:
       - "9092:9092"
     expose:
@@ -114,4 +125,3 @@ services:
 volumes:
   kafka_data:
   citus_master_data:
-  healthcheck-volume:

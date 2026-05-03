@@ -66,7 +66,7 @@ class KafkaSettings(EmptyBaseSettings):
 
 
 class DbSettings(EmptyBaseSettings):
-    DB_MASTER_HOST: str = "db"
+    DB_MASTER_HOST: str = "master_db"
     DB_MASTER_PORT: int = 5432
     DB_MASTER_USER: str = "postgres"
     DB_MASTER_PASSWORD: str = "app_pswd"
