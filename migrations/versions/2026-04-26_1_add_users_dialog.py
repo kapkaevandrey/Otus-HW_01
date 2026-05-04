@@ -82,13 +82,21 @@ def upgrade():
         """)
         op.execute("""
         DO $$
+        DECLARE
+            is_distributed boolean := false;
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus')
-               AND NOT EXISTS (
-                   SELECT 1
-                   FROM pg_dist_partition
-                   WHERE logicalrelid = 'messages'::regclass
-               ) THEN
+               AND to_regclass('pg_dist_partition') IS NOT NULL THEN
+                EXECUTE
+                    'SELECT EXISTS (
+                        SELECT 1
+                        FROM pg_dist_partition
+                        WHERE logicalrelid = ''messages''::regclass
+                    )'
+                    INTO is_distributed;
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus') AND NOT is_distributed THEN
                 PERFORM create_distributed_table('messages', 'conversation_id');
             END IF;
         END

@@ -53,9 +53,8 @@ async def init_test_db():
     """
     engine = create_async_engine(db_settings.db_master_url, isolation_level="AUTOCOMMIT")
     async with engine.begin() as conn:
-        result = await conn.execute(text(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{TEST_DB_NAME}'"))
-        if not result.scalar():
-            await conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
+        await conn.execute(text(f"DROP DATABASE IF EXISTS {TEST_DB_NAME} WITH(FORCE)"))
+        await conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", db_settings.db_dsn_master.render_as_string(hide_password=False))
     loop = asyncio.get_running_loop()
@@ -86,7 +85,13 @@ async def create_tables(request):
         engine = create_async_engine(db_settings.db_dsn_master, isolation_level="AUTOCOMMIT")
         yield
         async with engine.begin() as connection:
-            result = await connection.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'"))
+            result = await connection.execute(
+                text("""
+                SELECT tablename
+                FROM pg_tables
+                WHERE schemaname='public' AND tablename <> 'alembic_version'
+                """)
+            )
             tables = [row[0] for row in result.fetchall()]
             if tables:
                 tables_list = ", ".join(f'"{t}"' for t in tables)
