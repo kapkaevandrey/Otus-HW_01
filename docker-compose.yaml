@@ -55,6 +55,8 @@ services:
       PGPASSWORD: app_pswd
       WORKERS: ${WORKERS:-3}
       PROJECT_NAME: ${PROJECT_NAME:-dialogs}
+      WAIT_WORKER_TIMEOUT_SEC: ${WAIT_WORKER_TIMEOUT_SEC:-300}
+      WAIT_WORKER_RETRY_SEC: ${WAIT_WORKER_RETRY_SEC:-2}
     command:
       - /bin/bash
       - -ec
@@ -62,17 +64,23 @@ services:
         set -e
         echo "Init coordinator"
         psql -h master -U postgres -d app_db -c "SELECT citus_set_coordinator_host('master_db', 5432);"
+        if [ "$$WAIT_WORKER_RETRY_SEC" -lt 1 ]; then
+          WAIT_WORKER_RETRY_SEC=1
+        fi
+        max_attempts=$$((WAIT_WORKER_TIMEOUT_SEC / WAIT_WORKER_RETRY_SEC))
+        if [ "$$max_attempts" -lt 1 ]; then
+          max_attempts=1
+        fi
         for i in $$(seq 1 $$WORKERS); do
           host="$${PROJECT_NAME}-worker-$$i"
           attempts=0
-          max_attempts=60
           echo "Waiting for worker $$i ($$host)"
           while [ $$attempts -lt $$max_attempts ]; do
             if pg_isready -h "$$host" -U postgres -p 5432 >/dev/null 2>&1; then
               break
             fi
             attempts=$$((attempts + 1))
-            sleep 2
+            sleep "$$WAIT_WORKER_RETRY_SEC"
           done
           if ! pg_isready -h "$$host" -U postgres -p 5432 >/dev/null 2>&1; then
             echo "Could not resolve worker $$i: $$host"
@@ -84,6 +92,11 @@ services:
             psql -h master -U postgres -d app_db -v ON_ERROR_STOP=1 -c "SELECT master_add_node('$$host', 5432);"
           fi
         done
+        registered_count=$$(psql -h master -U postgres -d app_db -tA -c "SELECT COUNT(*) FROM pg_dist_node WHERE noderole = 'primary' AND isactive AND nodename LIKE '$${PROJECT_NAME}-worker-%';")
+        if [ "$$registered_count" -lt "$$WORKERS" ]; then
+          echo "Expected $$WORKERS workers in pg_dist_node but got $$registered_count"
+          exit 1
+        fi
         echo "Citus init done"
 
   citus-rebalancer:
@@ -112,7 +125,7 @@ services:
               WITH node_shards AS (
                 SELECT n.nodename, n.nodeport, COUNT(*) AS shard_count
                 FROM pg_dist_shard_placement p
-                JOIN pg_dist_node n ON n.groupid = p.groupid
+                JOIN pg_dist_node n ON n.nodename = p.nodename AND n.nodeport = p.nodeport
                 WHERE n.noderole = 'primary' AND n.isactive
                 GROUP BY n.nodename, n.nodeport
               ),
