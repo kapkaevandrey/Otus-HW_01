@@ -4,9 +4,12 @@
 
 .DEFAULT_GOAL := run_tests
 
+WORKERS ?= 3
+PROJECT_NAME ?= dialogs
+
 ## run:       start app in docker
 run:
-	docker-compose up
+	PROJECT_NAME=$(PROJECT_NAME) docker-compose -p $(PROJECT_NAME) up --scale worker=$(WORKERS)
 
 ## run_load_test:       start app in docker with infra for testing
 run_load_test: down
@@ -29,7 +32,7 @@ start_db_replicas_infra: down
 
 
 down:
-	docker-compose down --remove-orphans
+	PROJECT_NAME=$(PROJECT_NAME) docker-compose -p $(PROJECT_NAME) down --remove-orphans
 	docker-compose -f test_infra/docker-compose.yaml down --remove-orphans
 
 

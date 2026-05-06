@@ -54,6 +54,7 @@ services:
     environment:
       PGPASSWORD: app_pswd
       WORKERS: "3"
+      PROJECT_NAME: ${PROJECT_NAME:-dialogs}
     command:
       - /bin/bash
       - -ec
@@ -62,7 +63,7 @@ services:
         echo "Init coordinator"
         psql -h master -U postgres -d app_db -c "SELECT citus_set_coordinator_host('master_db', 5432);"
         for i in $(seq 1 $WORKERS); do
-          host="worker-$i"
+          host="${PROJECT_NAME}-worker-$i"
           echo "Waiting for $host"
           until pg_isready -h $host -U postgres -p 5432 >/dev/null 2>&1; do
             sleep 2
