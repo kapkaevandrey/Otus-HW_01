@@ -62,20 +62,37 @@ services:
         set -e
         echo "Init coordinator"
         psql -h master -U postgres -d app_db -c "SELECT citus_set_coordinator_host('master_db', 5432);"
-        for i in $(seq 1 $WORKERS); do
-          host="${PROJECT_NAME}-worker-$i"
-          echo "Waiting for $host"
-          until pg_isready -h $host -U postgres -p 5432 >/dev/null 2>&1; do
+        for i in $$(seq 1 $$WORKERS); do
+          host_dash="$${PROJECT_NAME}-worker-$$i"
+          host_underscore="$${PROJECT_NAME}_worker_$$i"
+          host=""
+          attempts=0
+          max_attempts=60
+          echo "Waiting for worker $$i ($$host_dash or $$host_underscore)"
+          while [ $$attempts -lt $$max_attempts ]; do
+            if pg_isready -h "$$host_dash" -U postgres -p 5432 >/dev/null 2>&1; then
+              host="$$host_dash"
+              break
+            fi
+            if pg_isready -h "$$host_underscore" -U postgres -p 5432 >/dev/null 2>&1; then
+              host="$$host_underscore"
+              break
+            fi
+            attempts=$$((attempts + 1))
             sleep 2
           done
-          echo "Register $host"
+          if [ -z "$$host" ]; then
+            echo "Could not resolve worker $$i by known host patterns: $$host_dash, $$host_underscore"
+            exit 1
+          fi
+          echo "Register $$host"
           psql -h master -U postgres -d app_db -v ON_ERROR_STOP=1 -c "
             DO $$
             BEGIN
               IF NOT EXISTS (
-                SELECT 1 FROM pg_dist_node WHERE nodename = '$host'
+                SELECT 1 FROM pg_dist_node WHERE nodename = '$$host'
               ) THEN
-                PERFORM master_add_node('$host', 5432);
+                PERFORM master_add_node('$$host', 5432);
               END IF;
             END $$;
           "
