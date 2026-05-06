@@ -9,7 +9,7 @@ PROJECT_NAME ?= dialogs
 
 ## run:       start app in docker
 run:
-	PROJECT_NAME=$(PROJECT_NAME) docker-compose -p $(PROJECT_NAME) up --scale worker=$(WORKERS)
+	PROJECT_NAME=$(PROJECT_NAME) WORKERS=$(WORKERS) docker-compose -p $(PROJECT_NAME) up --scale worker=$(WORKERS)
 
 ## run_load_test:       start app in docker with infra for testing
 run_load_test: down

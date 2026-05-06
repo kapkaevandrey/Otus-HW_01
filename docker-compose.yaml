@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     environment:
       PGPASSWORD: app_pswd
-      WORKERS: "3"
+      WORKERS: ${WORKERS:-3}
       PROJECT_NAME: ${PROJECT_NAME:-dialogs}
     command:
       - /bin/bash
