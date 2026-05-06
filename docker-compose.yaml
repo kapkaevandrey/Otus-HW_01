@@ -86,6 +86,60 @@ services:
         done
         echo "Citus init done"
 
+  citus-rebalancer:
+    image: citusdata/citus:12.1.6
+    restart: always
+    depends_on:
+      master:
+        condition: service_healthy
+      citus-init:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: app_pswd
+      REBALANCE_TABLE: ${REBALANCE_TABLE:-messages}
+      REBALANCE_INTERVAL_SEC: ${REBALANCE_INTERVAL_SEC:-300}
+      REBALANCE_THRESHOLD_PCT: ${REBALANCE_THRESHOLD_PCT:-20}
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        set -e
+        echo "Citus rebalancer started for table=$$REBALANCE_TABLE interval=$$REBALANCE_INTERVAL_SEC threshold_pct=$$REBALANCE_THRESHOLD_PCT"
+        while true; do
+          lock_acquired=$$(psql -h master -U postgres -d app_db -tA -c "SELECT pg_try_advisory_lock(908001);")
+          if [ "$$lock_acquired" = "t" ]; then
+            need_rebalance=$$(psql -h master -U postgres -d app_db -tA -c "
+              WITH node_shards AS (
+                SELECT n.nodename, n.nodeport, COUNT(*) AS shard_count
+                FROM pg_dist_shard_placement p
+                JOIN pg_dist_node n ON n.groupid = p.groupid
+                WHERE n.noderole = 'primary' AND n.isactive
+                GROUP BY n.nodename, n.nodeport
+              ),
+              stats AS (
+                SELECT COALESCE(MIN(shard_count), 0) AS mn, COALESCE(MAX(shard_count), 0) AS mx
+                FROM node_shards
+              )
+              SELECT CASE
+                WHEN mn = 0 THEN 0
+                WHEN ((mx - mn) * 100.0 / mn) >= $$REBALANCE_THRESHOLD_PCT THEN 1
+                ELSE 0
+              END
+              FROM stats;
+            ")
+            if [ "$$need_rebalance" = "1" ]; then
+              echo "Skew over threshold, running rebalance for $$REBALANCE_TABLE"
+              psql -h master -U postgres -d app_db -v ON_ERROR_STOP=1 -c "SELECT rebalance_table_shards('$$REBALANCE_TABLE');"
+            else
+              echo "Skew is within threshold, rebalance skipped"
+            fi
+            psql -h master -U postgres -d app_db -tA -c "SELECT pg_advisory_unlock(908001);" >/dev/null
+          else
+            echo "Another rebalancer holds the lock, skip this cycle"
+          fi
+          sleep "$$REBALANCE_INTERVAL_SEC"
+        done
+
   valkey:
     image: dhi.io/valkey:9
     container_name: redis
