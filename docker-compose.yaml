@@ -63,26 +63,19 @@ services:
         echo "Init coordinator"
         psql -h master -U postgres -d app_db -c "SELECT citus_set_coordinator_host('master_db', 5432);"
         for i in $$(seq 1 $$WORKERS); do
-          host_dash="$${PROJECT_NAME}-worker-$$i"
-          host_underscore="$${PROJECT_NAME}_worker_$$i"
-          host=""
+          host="$${PROJECT_NAME}-worker-$$i"
           attempts=0
           max_attempts=60
-          echo "Waiting for worker $$i ($$host_dash or $$host_underscore)"
+          echo "Waiting for worker $$i ($$host)"
           while [ $$attempts -lt $$max_attempts ]; do
-            if pg_isready -h "$$host_dash" -U postgres -p 5432 >/dev/null 2>&1; then
-              host="$$host_dash"
-              break
-            fi
-            if pg_isready -h "$$host_underscore" -U postgres -p 5432 >/dev/null 2>&1; then
-              host="$$host_underscore"
+            if pg_isready -h "$$host" -U postgres -p 5432 >/dev/null 2>&1; then
               break
             fi
             attempts=$$((attempts + 1))
             sleep 2
           done
-          if [ -z "$$host" ]; then
-            echo "Could not resolve worker $$i by known host patterns: $$host_dash, $$host_underscore"
+          if ! pg_isready -h "$$host" -U postgres -p 5432 >/dev/null 2>&1; then
+            echo "Could not resolve worker $$i: $$host"
             exit 1
           fi
           echo "Register $$host"
