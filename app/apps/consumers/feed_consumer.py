@@ -4,13 +4,14 @@ from typing import Any
 from aiokafka import ConsumerRecord
 from pydantic import ValidationError
 
+from app.config import kafka_settings
 from app.core.clients import BaseKafkaConsumer
 from app.core.containers import Context, get_context
 from app.core.services import PostService, UserUtils
 from app.schemas.services import ServiceEvent
 
 
-class CacheFeedConsumer(BaseKafkaConsumer):
+class FeedConsumer(BaseKafkaConsumer):
     @cached_property
     def post_service(self) -> PostService:
         return PostService(self.context)
@@ -24,7 +25,10 @@ class CacheFeedConsumer(BaseKafkaConsumer):
         if not schema or schema.event_type not in self.post_service.RECALCULATE_CACHE_EVENTS:
             return
         service_response = await self.post_service.recalculate_user_feed_from_event(
-            schema=schema, ts_ms=ts_ms, user_utils=UserUtils()
+            schema=schema,
+            ts_ms=ts_ms,
+            user_utils=UserUtils(),
+            celebrity_feed_topic=kafka_settings.SERVICE_FEED_CELEBRITY_TOPIC,
         )
         if service_response.is_success:
             self.logger.info("Successfully recalculated user feed cache")

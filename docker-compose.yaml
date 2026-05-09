@@ -31,6 +31,23 @@ services:
     depends_on:
       - valkey
       - master
+      - kafka
+
+  app-instance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    container_name: app-instance
+    restart: always
+    environment:
+      ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030"
+      DB_MASTER_HOST: master
+    env_file:
+      - dev.env
+    command: [ "api", "8000" ]
+    depends_on:
+      - app
 
   master:
     <<: *citus-common
@@ -180,6 +197,7 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_NUM_PARTITIONS: 50
     volumes:
       - kafka_data:/var/lib/kafka/data
       - /var/run/docker.sock:/var/run/docker.sock

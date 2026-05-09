@@ -29,3 +29,8 @@ class GetPostServiceResponseSchema(EmptyBaseSchema):
 class CachedFeedPostsSchema(EmptyBaseSchema):
     ts: dt.datetime
     items: list[UserPublicationDto]
+
+
+class BigCacheFeedRecalculateEvent(EmptyBaseSchema):
+    ts: dt.datetime
+    post_creator_id: UUID

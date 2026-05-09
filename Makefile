@@ -5,6 +5,7 @@
 .DEFAULT_GOAL := run_tests
 
 WORKERS ?= 3
+APP_INSTANCES ?=1
 PROJECT_NAME ?= dialogs
 
 ## run:       start app in docker

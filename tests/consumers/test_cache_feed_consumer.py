@@ -2,7 +2,7 @@ import datetime as dt
 from types import SimpleNamespace
 from uuid import uuid4
 
-from app.apps.consumers import CacheFeedConsumer
+from app.apps.consumers import FeedConsumer
 from app.core.enums import EventTypes
 from app.core.services import UserUtils
 from app.schemas.services import BaseServiceResponse, ServiceEvent
@@ -15,13 +15,13 @@ class StubPostService:
         self.calls: list[dict] = []
         self.response = response or BaseServiceResponse[None]()
 
-    async def recalculate_user_feed_from_event(self, schema: ServiceEvent, user_utils: UserUtils, ts_ms: int):
-        self.calls.append({"schema": schema, "user_utils": user_utils, "ts_ms": ts_ms})
+    async def recalculate_user_feed_from_event(self, schema: ServiceEvent, user_utils: UserUtils, ts_ms: int, celebrity_feed_topic: str):
+        self.calls.append({"schema": schema, "user_utils": user_utils, "ts_ms": ts_ms, "celebrity_feed_topic": celebrity_feed_topic})
         return self.response
 
 
-def get_consumer_with_service(service: StubPostService) -> CacheFeedConsumer:
-    consumer = CacheFeedConsumer(
+def get_consumer_with_service(service: StubPostService) -> FeedConsumer:
+    consumer = FeedConsumer(
         consumer_class=object,
         consumer_args=(),
         consumer_kwargs={},

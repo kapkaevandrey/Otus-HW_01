@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.apps.api import main_router
-from app.apps.consumers import CacheFeedConsumer
+from app.apps.consumers import CelebrityFeedConsumer, FeedConsumer
 from app.config import app_settings, kafka_settings
 from app.core.containers import get_context
 from app.core.utils import restart_on_exception, run_tasks, shutdown
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         "ssl_context": ssl.create_default_context() if "SSL" in kafka_settings.KAFKA_SECURITY_PROTOCOL else None,
     }
     tasks = []
-    feed_cache_consumer = CacheFeedConsumer(
+    feed_consumer = FeedConsumer(
         consumer_class=AIOKafkaConsumer,
         consumer_args=(
             kafka_settings.SERVICE_USER_PUBLICATION_TOPIC,
@@ -71,7 +71,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         consumer_kwargs=default_consumer_kwargs,
         logger=logger,
     )
-    tasks.append(restart_on_exception(feed_cache_consumer.run))
+    celebrity_feed_consumer = CelebrityFeedConsumer(
+        consumer_class=AIOKafkaConsumer,
+        consumer_args=(kafka_settings.SERVICE_FEED_CELEBRITY_TOPIC,),
+        consumer_kwargs=default_consumer_kwargs,
+        logger=logger,
+    )
+    tasks.append(restart_on_exception(feed_consumer.run))
+    tasks.append(restart_on_exception(celebrity_feed_consumer.run))
     await context.start_clients()
     run_tasks(tasks)
     yield

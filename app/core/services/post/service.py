@@ -11,6 +11,7 @@ from app.exceptions import BaseServiceError
 from app.schemas.dto import UserFriendDto, UserPublicationCreateSchema, UserPublicationDto, UserPublicationUpdateSchema
 from app.schemas.services import (
     BaseServiceResponse,
+    BigCacheFeedRecalculateEvent,
     GetPostServiceResponseSchema,
     PostCreateServiceSchema,
     PostUpdateServiceSchema,
@@ -29,6 +30,9 @@ class PostService(BaseService):
         EventTypes.UPDATE_USER_PUBLICATION,
         EventTypes.REMOVE_USER_PUBLICATION,
     }
+    FOLLOWERS_CHUNK_SIZE = 1_000
+    CELEBRITY_FOLLOWERS_MIN = 100_000
+    FEED_DEFAULT_TTL = 10 * 60
 
     @cached_property
     def utils(self) -> PostUtils:
@@ -123,7 +127,11 @@ class PostService(BaseService):
 
     @async_use_case()
     async def recalculate_user_feed_from_event(
-        self, schema: ServiceEvent, user_utils: UserUtils, ts_ms: int
+        self,
+        schema: ServiceEvent,
+        user_utils: UserUtils,
+        ts_ms: int,
+        celebrity_feed_topic: str,
     ) -> BaseServiceResponse[None]:
         response = BaseServiceResponse[None](status=HTTPStatus.NO_CONTENT)
         if schema.event_type not in self.RECALCULATE_CACHE_EVENTS:
@@ -146,20 +154,43 @@ class PostService(BaseService):
         ):
             post = UserPublicationDto.model_validate(schema.data)
             async with self.context.uow.transaction() as uow:
-                followers_ids = await uow.user_friends_repo.get_need_fields(
-                    fields=["user_id"], where={"friend_id": post.user_id}, mapped=False
-                )
-                await self.utils.clear_followers_cache(
-                    users_ids=[row[0] for row in followers_ids], redis_client=self.context.redis_client
-                )
+                followers_count = await uow.user_friends_repo.count(where={"friend_id": post.user_id})
+                if followers_count >= self.CELEBRITY_FOLLOWERS_MIN:
+                    await self.context.kafka_producer.send_message(
+                        topic=celebrity_feed_topic,
+                        value=BigCacheFeedRecalculateEvent(
+                            ts=utcnow(),
+                            post_creator_id=post.user_id,
+                        ).model_dump(mode="json"),
+                        key=post.id.hex,
+                    )
+                else:
+                    followers_ids = await uow.user_friends_repo.get_need_fields(
+                        fields=["user_id"], where={"friend_id": post.user_id}, mapped=False
+                    )
+                    await self.utils.clear_followers_cache(
+                        users_ids=[row[0] for row in followers_ids],
+                        chunk_size=self.FOLLOWERS_CHUNK_SIZE,
+                        redis_client=self.context.redis_client,
+                    )
+
         return response
+
+    @async_use_case()
+    async def recalculate_celebrity_users_feeds(
+        self,
+        data: BigCacheFeedRecalculateEvent,
+    ):
+        pass
 
     async def _get_user_friends_posts_and_cached(
         self,
         user_id: UUID,
         size: int,
         user_utils: UserUtils,
+        cache_ex: int | None = None,
     ) -> list[UserPublicationDto]:
+        cache_ex = cache_ex or self.FEED_DEFAULT_SIZE
         async with self.context.uow.transaction() as uow:
             user = await user_utils.get_user_by_id(user_id=user_id, uow=uow)
             join_params = [
@@ -175,6 +206,11 @@ class PostService(BaseService):
                 joins=join_params, order_fields=["created_at__desc"], limit=size
             )
             await self.utils.set_feed_cache(
-                user_id=user_id, posts=posts, redis_client=self.context.redis_client, ttl_block=1, ts=utcnow()
+                user_id=user_id,
+                posts=posts,
+                redis_client=self.context.redis_client,
+                ttl_block=1,
+                ts=utcnow(),
+                ex=cache_ex,
             )
         return posts

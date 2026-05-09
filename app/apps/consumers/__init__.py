@@ -1,4 +1,5 @@
-from .cache_feed_consumer import CacheFeedConsumer
+from .celebrity_feed_consumer import CelebrityFeedConsumer
+from .feed_consumer import FeedConsumer
 
 
-__all__ = ["CacheFeedConsumer"]
+__all__ = ["FeedConsumer", "CelebrityFeedConsumer"]

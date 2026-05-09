@@ -71,7 +71,53 @@ async def test_recalculate_user_feed_from_post_event_clears_followers_cache(cont
         ),
         user_utils=UserUtils(),
         ts_ms=int(dt.datetime.now(tz=dt.UTC).timestamp() * 1000),
+        celebrity_feed_topic="topic_celebrity",
     )
     assert service_response.is_success
     assert await service.utils.get_cached_user_feed(follower_one.id, context.redis_client) is None
     assert await service.utils.get_cached_user_feed(follower_two.id, context.redis_client) is None
+
+
+async def test_recalculate_user_feed_send_invalidate_celebrity_cache_message(context, faker: Faker):
+    uow = context.uow
+    users_items = 1_000_000
+    users = await uow.user_repo.add_batch(
+        [
+            UserCreateSchema(
+                first_name=faker.first_name(),
+                second_name=faker.last_name(),
+                birthdate=dt.date(1990, 1, 1),
+                password=uuid4().hex,
+            )
+            for _ in range(users_items)
+        ]
+    )
+    celeb = users[0]
+    other = users[1:]
+    await uow.user_friends_repo.add_batch([UserFriendCreateSchema(user_id=u.id, friend_id=celeb.id) for u in other])
+    PostService(context)
+    # cached_post = UserPublicationDto(
+    #     id=uuid4(),
+    #     user_id=author.id,
+    #     text=uuid4().hex,
+    #     created_at=dt.datetime.now(tz=dt.UTC),
+    #     updated_at=dt.datetime.now(tz=dt.UTC),
+    #     is_draft=False,
+    # )
+    # for follower in (follower_one, follower_two):
+    #     await context.redis_client.set(
+    #         service.utils.REDIS_USER_FRIENDS_FEED_KEY.format(user_id=follower.id),
+    #         CachedFeedPostsSchema(items=[cached_post], ts=dt.datetime.now(tz=dt.UTC)).model_dump_json(),
+    #     )
+    # service_response = await service.recalculate_user_feed_from_event(
+    #     schema=ServiceEvent(
+    #         event_type=EventTypes.ADD_USER_PUBLICATION,
+    #         data=cached_post.model_dump(mode="json"),
+    #     ),
+    #     user_utils=UserUtils(),
+    #     ts_ms=int(dt.datetime.now(tz=dt.UTC).timestamp() * 1000),
+    #     celebrity_feed_topic="topic_celebrity"
+    # )
+    # assert service_response.is_success
+    # assert await service.utils.get_cached_user_feed(follower_one.id, context.redis_client) is None
+    # assert await service.utils.get_cached_user_feed(follower_two.id, context.redis_client) is None
