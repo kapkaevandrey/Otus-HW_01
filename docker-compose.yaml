@@ -23,31 +23,54 @@ services:
     environment:
       ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030"
       DB_MASTER_HOST: master
+      DB_DATABASE: app_db
+      KAFKA_BROKERS: kafka:9093
+      REDIS_HOST: redis
     ports:
       - "8000:8000"
     env_file:
       - dev.env
-    command: ["start", "8000"]
+    command: ["api", "8000"]
     depends_on:
-      - valkey
-      - master
-      - kafka
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_started
+      kafka:
+        condition: service_started
 
   app-instance:
     build:
       context: .
       dockerfile: Dockerfile
       target: dev
-    container_name: app-instance
     restart: always
     environment:
       ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030"
       DB_MASTER_HOST: master
+      DB_DATABASE: app_db
+      KAFKA_BROKERS: kafka:9093
+      REDIS_HOST: redis
     env_file:
       - dev.env
     command: [ "api", "8000" ]
     depends_on:
       - app
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    restart: "no"
+    environment:
+      DB_MASTER_HOST: master
+    env_file:
+      - dev.env
+    command: ["init"]
+    depends_on:
+      citus-init:
+        condition: service_completed_successfully
 
   master:
     <<: *citus-common
@@ -62,7 +85,7 @@ services:
 
   citus-init:
     image: citusdata/citus:12.1.6
-    restart: "no"
+    restart: on-failure:5
     depends_on:
       master:
         condition: service_healthy

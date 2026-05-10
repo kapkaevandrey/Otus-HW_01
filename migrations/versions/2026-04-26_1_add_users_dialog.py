@@ -17,7 +17,7 @@ depends_on = None
 
 def upgrade():
     op.execute("""
-    CREATE TABLE conversations (
+    CREATE TABLE IF NOT EXISTS conversations (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         type VARCHAR(16) NOT NULL,
         created_by UUID NOT NULL,
@@ -38,12 +38,12 @@ def upgrade():
     );
     """)
     op.execute("""
-    CREATE UNIQUE INDEX ux_conversation_direct_pair 
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_conversation_direct_pair
     ON conversations (peer_low_id, peer_high_id)
     WHERE type = 'direct';
     """)
     op.execute("""
-    CREATE TABLE conversation_participants (
+    CREATE TABLE IF NOT EXISTS conversation_participants (
         conversation_id UUID NOT NULL,
         user_id UUID NOT NULL,
         CONSTRAINT pk_conversation_participants PRIMARY KEY (user_id, conversation_id),
@@ -52,7 +52,7 @@ def upgrade():
     );
     """)
     op.execute("""
-    CREATE TABLE messages (
+    CREATE TABLE IF NOT EXISTS messages (
         conversation_id UUID NOT NULL,
         id UUID NOT NULL DEFAULT gen_random_uuid(),
         sender_id UUID NOT NULL,
@@ -63,11 +63,11 @@ def upgrade():
     );
     """)
     op.execute("""
-    CREATE INDEX idx_conversation_participants_conversation_id
+    CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation_id
     ON conversation_participants (conversation_id);
     """)
     op.execute("""
-    CREATE INDEX idx_messages_conversation_sent_at
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation_sent_at
     ON messages (conversation_id, sent_at DESC, id DESC);
     """)
     with op.get_context().autocommit_block():

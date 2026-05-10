@@ -18,12 +18,36 @@ depends_on = None
 
 def upgrade():
     with op.get_context().autocommit_block():
+        # On Citus coordinator, extension DDL propagation may fail here with
+        # "internal Citus function can only be used in a distributed transaction".
+        # Apply setting only when Citus extension is installed, so plain Postgres
+        # environments keep working.
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus') THEN
+                    PERFORM set_config('citus.enable_ddl_propagation', 'off', false);
+                END IF;
+            END $$;
+            """
+        )
         op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
         op.execute(
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_first_name_trgm ON users USING GIN(first_name gin_trgm_ops);"
         )
         op.execute(
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_second_name_trgm ON users USING GIN(second_name gin_trgm_ops);"
+        )
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citus') THEN
+                    PERFORM set_config('citus.enable_ddl_propagation', 'on', false);
+                END IF;
+            END $$;
+            """
         )
 
 def downgrade():
