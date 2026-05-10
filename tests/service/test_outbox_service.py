@@ -74,13 +74,16 @@ async def test_processing_events_outbox_task_sends_message_to_socket(
 async def test_processing_events_outbox_task_concurrent_workers(context, faker, user_one, user_two):
     ws_topic = "topic.ws.concurrent"
     post_service = PostService(context)
+    expected_posts_count = 5
     await context.uow.user_friends_repo.add(
         UserFriendCreateSchema(
             user_id=user_two.id,
             friend_id=user_one.id,
         )
     )
-    for _ in range(5):
+    expected_post_ids: set[str] = set()
+    initial_messages_count = len(context.kafka_producer.messages[ws_topic])
+    for _ in range(expected_posts_count):
         response = await post_service.create_post(
             user_id=user_one.id,
             data=PostCreateServiceSchema(text=faker.text()),
@@ -88,8 +91,9 @@ async def test_processing_events_outbox_task_concurrent_workers(context, faker, 
             event_topic="topic.post.events",
         )
         assert response.is_success
+        expected_post_ids.add(str(response.result.id))
 
-    assert await context.uow.event_actions_repo.count() == 5
+    assert await context.uow.event_actions_repo.count() == expected_posts_count
     tasks = [
         asyncio.create_task(
             processing_events_outbox_task(
@@ -101,13 +105,24 @@ async def test_processing_events_outbox_task_concurrent_workers(context, faker, 
         )
         for _ in range(5)
     ]
+    outbox_is_empty = False
     for _ in range(200):
         if await context.uow.event_actions_repo.count() == 0:
+            outbox_is_empty = True
             break
         await asyncio.sleep(0.01)
+
+    assert outbox_is_empty
+    # Let workers reach the idle sleep path so cancellation does not interrupt
+    # send-before-delete critical section and cause duplicate deliveries.
+    await asyncio.sleep(0.05)
+
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
 
-    assert len(context.kafka_producer.messages[ws_topic]) == 5
+    sent_messages = list(context.kafka_producer.messages[ws_topic])[initial_messages_count:]
+    assert len(sent_messages) == expected_posts_count
+    sent_post_ids = {message["payload"]["postId"] for _key, message in sent_messages}
+    assert sent_post_ids == expected_post_ids
     assert await context.uow.event_actions_repo.count() == 0
