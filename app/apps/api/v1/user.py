@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.apps.api.utils import raise_http_exception_from_service_response
+from app.apps.utils import raise_http_exception_from_service_response
 from app.core.consts import STRING_COLUMN_255
 from app.core.containers import Context, get_context
 from app.core.services import AuthUtils, UserService

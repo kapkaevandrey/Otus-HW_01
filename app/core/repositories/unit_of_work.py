@@ -12,6 +12,7 @@ from app.core.enums import Tables
 from app.schemas.dto import (
     ConversationDto,
     ConversationParticipantsDto,
+    EventActionOutboxDto,
     MessageDto,
     UserDto,
     UserFriendDto,
@@ -22,6 +23,7 @@ from .repos import (
     BaseRepository,
     ConversationParticipantsRepo,
     ConversationRepo,
+    EventActionOutboxRepo,
     MessageRepo,
     UserFriendsRepo,
     UserPublicationRepo,
@@ -48,6 +50,9 @@ class UnitOfWork:
             db_client=db_client, table=Tables.conversation_participants, dto_schema=ConversationParticipantsDto
         )
         self._message_repo = MessageRepo(db_client=db_client, table=Tables.messages, dto_schema=MessageDto)
+        self._event_actions_repo = EventActionOutboxRepo(
+            db_client=db_client, table=Tables.events_outbox, dto_schema=EventActionOutboxDto
+        )
 
     @property
     def repositories(self) -> list[BaseRepository]:
@@ -58,6 +63,7 @@ class UnitOfWork:
             self._conversation_repo,
             self._conversation_participants_repo,
             self._message_repo,
+            self._event_actions_repo,
         ]
 
     @property
@@ -83,6 +89,10 @@ class UnitOfWork:
     @property
     def conversation_participants_repo(self) -> ConversationParticipantsRepo:
         return self._conversation_participants_repo
+
+    @property
+    def event_actions_repo(self) -> EventActionOutboxRepo:
+        return self._event_actions_repo
 
     @property
     def logger(self) -> Logger:

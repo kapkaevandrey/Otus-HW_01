@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
 
-from app.apps.api.utils import raise_http_exception_from_service_response
+from app.apps.utils import raise_http_exception_from_service_response
 from app.config import auth_settings
 from app.core.containers import Context, get_context
 from app.core.enums import ScopeType

@@ -7,6 +7,7 @@ from .conversation import (
     ConversationUpdateSchema,
 )
 from .messages import MessageCreateSchema, MessageDto, MessageUpdateSchema
+from .outbox import EventActionOutboxCreateSchema, EventActionOutboxDto, EventActionOutboxUpdateSchema
 from .publications import UserPublicationCreateSchema, UserPublicationDto, UserPublicationUpdateSchema
 from .user import (
     UserCreateSchema,
@@ -37,4 +38,7 @@ __all__ = [
     "MessageDto",
     "MessageUpdateSchema",
     "MessageCreateSchema",
+    "EventActionOutboxDto",
+    "EventActionOutboxCreateSchema",
+    "EventActionOutboxUpdateSchema",
 ]

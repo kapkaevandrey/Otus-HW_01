@@ -5,6 +5,7 @@ from aiokafka import AIOKafkaProducer
 
 from app.config import db_settings, kafka_settings, redis_settings
 from app.core.clients import KafkaProducerAIO, RedisClient, SQLAlchemyAsyncPgClient
+from app.core.clients.ws import SocketConnectionManager
 from app.core.repositories import UnitOfWork
 
 
@@ -14,9 +15,11 @@ class Context:
         kafka_producer: KafkaProducerAIO,
         db_client: SQLAlchemyAsyncPgClient,
         redis_client: RedisClient,
+        socket_manager: SocketConnectionManager,
         logger: Logger | None = None,
     ) -> None:
         self._db_client = db_client
+        self._socket_manager = socket_manager
         self._kafka_producer = kafka_producer
         self._redis_client = redis_client
         self._logger = logger or getLogger(__name__)
@@ -34,6 +37,10 @@ class Context:
         return self._redis_client
 
     @property
+    def socket_manager(self) -> SocketConnectionManager:
+        return self._socket_manager
+
+    @property
     def uow(self):
         return UnitOfWork(db_client=self._db_client)
 
@@ -44,12 +51,14 @@ class Context:
     async def start_clients(self):
         """Start all clients if that need"""
         await self._db_client.start_client()
+        await self.socket_manager.start()
         await self._kafka_producer.start()
 
     async def stop_clients(self):
         """Stop all clients if that need"""
         await self.db_client.stop_client()
         await self._kafka_producer.stop()
+        await self.socket_manager.stop()
 
 
 context = Context(
@@ -66,6 +75,7 @@ context = Context(
         producer_class=AIOKafkaProducer,
         topic=None,
     ),
+    socket_manager=SocketConnectionManager(),
     redis_client=RedisClient.from_settings(redis_settings),
     logger=getLogger(__name__),
 )

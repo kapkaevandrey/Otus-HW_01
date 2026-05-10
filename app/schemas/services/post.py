@@ -33,4 +33,4 @@ class CachedFeedPostsSchema(EmptyBaseSchema):
 
 class BigCacheFeedRecalculateEvent(EmptyBaseSchema):
     ts: dt.datetime
-    post_creator_id: UUID
+    post_id: UUID

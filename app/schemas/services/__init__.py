@@ -19,6 +19,7 @@ from .user import (
     RegisterUserServiceResponse,
     TokenSchema,
 )
+from .ws import AsyncChannelQueue
 
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "SendMessageServiceSchema",
     "SendMessageServiceResponse",
     "BigCacheFeedRecalculateEvent",
+    "AsyncChannelQueue",
 ]

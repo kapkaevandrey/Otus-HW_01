@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.core.clients import BaseKafkaConsumer
 from app.core.containers import Context, get_context
-from app.core.services import PostService, UserUtils
+from app.core.services import PostService
 from app.schemas.services import BigCacheFeedRecalculateEvent
 
 
@@ -21,9 +21,7 @@ class CelebrityFeedConsumer(BaseKafkaConsumer):
 
     async def process_message(self, message: ConsumerRecord, context: Any = None) -> None:
         schema, _ts_ms = self.try_get_message_schema(message.value), message.timestamp
-        service_response = await self.post_service.recalculate_celebrity_users_feeds(
-            schema=schema, user_utils=UserUtils()
-        )
+        service_response = await self.post_service.recalculate_celebrity_users_feeds(schema=schema)
         if service_response.is_success:
             self.logger.info("Successfully recalculated big user feed cache")
         else:

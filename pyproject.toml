@@ -74,6 +74,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "app/apps/api/**/*.py" = ["B008"] # Для игнорирования тайпинга context: Context = Depends(get_context)
+"app/apps/ws/**/*.py" = ["B008"] # Для игнорирования тайпинга context: Context = Depends(get_context)
 
 [tool.ruff.format]
 quote-style = "double"

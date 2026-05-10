@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -12,11 +13,12 @@ from sqlalchemy.pool import NullPool
 
 from app.config import db_settings, redis_settings
 from app.core.clients import RedisClient, SQLAlchemyAsyncPgClient
+from app.core.clients.ws import SocketConnectionManager
 from app.core.containers.context import Context, get_context
 from app.server import app
 
 
-pytest_plugins = ["tests.fixtures.instances", "tests.fixtures.mock_objects"]
+pytest_plugins = ["tests.fixtures.instances", "tests.fixtures.mock_objects", "tests.fixtures.factories"]
 
 
 TEST_DB_NAME = "_test_db"
@@ -28,6 +30,27 @@ async_test_engine = create_async_engine(
     poolclass=NullPool,
 )
 TestSessionMaker = async_sessionmaker(async_test_engine, expire_on_commit=False, autoflush=True, class_=AsyncSession)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def enable_log_propagation_for_tests():
+    """
+    Временно включает propagate=True для всех логгеров, чтобы caplog их ловил.
+    Работает для всех логгеров в тестах.
+    """
+    loggers = logging.root.manager.loggerDict
+    old_values = {}
+    for name, logger in loggers.items():
+        if not isinstance(logger, logging.Logger):
+            continue
+        old_values[name] = logger.propagate
+        logger.propagate = True
+    try:
+        yield
+    finally:
+        for name, logger in loggers.items():
+            if isinstance(logger, logging.Logger) and name in old_values:
+                logger.propagate = old_values[name]
 
 
 @pytest.fixture()
@@ -109,6 +132,7 @@ async def context(db_client: SQLAlchemyAsyncPgClient, kafka_producer_mock_client
         db_client=db_client,
         kafka_producer=kafka_producer_mock_client,
         redis_client=redis_client,
+        socket_manager=SocketConnectionManager(),
     )
 
     return context

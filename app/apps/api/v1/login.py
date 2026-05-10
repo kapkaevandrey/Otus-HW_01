@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 
-from app.apps.api.utils import raise_http_exception_from_service_response
+from app.apps.utils import raise_http_exception_from_service_response
 from app.config import auth_settings
 from app.core.containers import Context, get_context
 from app.core.services import AuthUtils, UserService
