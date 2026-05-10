@@ -3,17 +3,21 @@ import logging
 import ssl
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from aiokafka import AIOKafkaConsumer
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.apps.api import main_router
-from app.apps.consumers import CelebrityFeedConsumer, FeedConsumer
+from app.apps.consumers import CelebrityFeedConsumer, FeedConsumer, WsMessagesConsumer
 from app.apps.ws import ws_router
 from app.config import app_settings, kafka_settings
 from app.core.containers import get_context
+from app.core.enums import EventTypes
+from app.core.services.tasks import processing_events_outbox_task
 from app.core.utils import restart_on_exception, run_tasks, shutdown
+from app.logging_config import configure_logging
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +48,15 @@ def get_app(app_name: str, lifespan: Callable) -> FastAPI:
         statistic_queue=asyncio.Queue(),
         lifespan=lifespan,
     )
+    configure_logging(
+        root_log_level=app_settings.LOG_LEVEL,
+        app_log_level_map={
+            "app": "INFO",
+            "uvicorn": "INFO",
+            "aiokafka": "WARNING",
+        },
+        log_dev=app_settings.LOG_DEV,
+    )
     setup_middlewares(application)
     setup_routers(application)
     return application
@@ -63,6 +76,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         "sasl_plain_password": kafka_settings.KAFKA_SASL_PLAIN_PASSWORD,
         "ssl_context": ssl.create_default_context() if "SSL" in kafka_settings.KAFKA_SECURITY_PROTOCOL else None,
     }
+    ws_kwargs = default_consumer_kwargs.copy()
+    ws_kwargs["group_id"] = f"ws-{uuid4().hex}"
+    ws_messages_consumer = WsMessagesConsumer(
+        consumer_class=AIOKafkaConsumer,
+        consumer_args=(kafka_settings.WS_SEND_MESSAGES_TOPIC,),
+        consumer_kwargs=ws_kwargs,
+        logger=logger,
+    )
     feed_consumer = FeedConsumer(
         consumer_class=AIOKafkaConsumer,
         consumer_args=(
@@ -78,10 +99,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         consumer_kwargs=default_consumer_kwargs,
         logger=logger,
     )
+    processing_event_task = restart_on_exception(
+        processing_events_outbox_task,
+        run_params={
+            "context": context,
+            "service_name": app_settings.SERVICE_NAME,
+            "topics_map": {EventTypes.SEND_NEW_POST_FOR_FRIENDS: kafka_settings.WS_SEND_MESSAGES_TOPIC},
+        },
+    )
     await context.start_clients()
     tasks = [
         restart_on_exception(feed_consumer.run),
         restart_on_exception(celebrity_feed_consumer.run),
+        restart_on_exception(ws_messages_consumer.run),
+        processing_event_task,
     ]
     run_tasks(tasks)
     yield

@@ -49,7 +49,7 @@ class PostService(BaseService):
                 UserPublicationCreateSchema(text=data.text, is_draft=False, user_id=user.id)
             )
             await uow.event_actions_repo.create_send_post_to_all_consumers_events(
-                post_id=post.id, author_id=post.user_id
+                post_id=post.id, author_id=post.user_id, event_type=EventTypes.SEND_NEW_POST_FOR_FRIENDS
             )
             response.result = GetPostServiceResponseSchema(**post.model_dump())
             event = ServiceEvent(event_type=EventTypes.ADD_USER_PUBLICATION, data=post.model_dump())
@@ -183,7 +183,7 @@ class PostService(BaseService):
     async def recalculate_celebrity_users_feeds(
         self,
         data: BigCacheFeedRecalculateEvent,
-    ):
+    ) -> BaseServiceResponse[None]:
         response = BaseServiceResponse[None](status=HTTPStatus.NO_CONTENT)
         async with self.context.uow.transaction() as uow:
             post = await self.utils.get_post_by_id(post_id=data.post_id, uow=uow)

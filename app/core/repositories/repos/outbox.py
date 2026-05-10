@@ -17,6 +17,7 @@ class EventActionOutboxRepo(
         self,
         post_id: UUID,
         author_id: UUID,
+        event_type: EventTypes,
     ) -> None:
         query = """
             INSERT INTO events_outbox (event_type, properties)
@@ -32,7 +33,7 @@ class EventActionOutboxRepo(
         await self.db_client.execute_stmt(
             query=query,
             params={
-                "event_type": EventTypes.ADD_USER_PUBLICATION,
+                "event_type": event_type,
                 "post_id": str(post_id),
                 "author_id": author_id,
             },

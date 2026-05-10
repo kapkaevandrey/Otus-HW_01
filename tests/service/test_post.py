@@ -200,7 +200,7 @@ async def test_add_celebrity_post(context, faker: Faker, user_one):
     expected_consumer_ids = {friend.id for friend in many_friends}
     actual_consumer_ids = set()
     for event in events:
-        assert event.event_type == EventTypes.ADD_USER_PUBLICATION
+        assert event.event_type == EventTypes.SEND_NEW_POST_FOR_FRIENDS
         assert event.properties["post_id"] == str(service_response.result.id)
         actual_consumer_ids.add(UUID(str(event.properties["consumer_id"])))
     assert actual_consumer_ids == expected_consumer_ids

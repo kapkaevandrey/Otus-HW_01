@@ -22,6 +22,7 @@ class AppSettings(EmptyBaseSettings):
     LOG_LEVEL: str = "INFO"
     ALLOW_ORIGINS: str | None = None
     ENABLE_JSON_LOG: bool = True
+    LOG_DEV: bool = False
 
     @property
     def allow_origins_list(self) -> list[str]:
@@ -64,6 +65,7 @@ class KafkaSettings(EmptyBaseSettings):
     SERVICE_USER_EVENT_TOPIC: str = "social.user.events"
     SERVICE_USER_PUBLICATION_TOPIC: str = "social.user_publications.events"
     SERVICE_FEED_CELEBRITY_TOPIC: str = "social.user_publications.celebrity_post"
+    WS_SEND_MESSAGES_TOPIC: str = "social.ws.messages"
 
 
 class DbSettings(EmptyBaseSettings):

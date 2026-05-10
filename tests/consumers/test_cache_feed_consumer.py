@@ -15,7 +15,7 @@ class StubPostService:
         self.calls: list[dict] = []
         self.response = response or BaseServiceResponse[None]()
 
-    async def recalculate_user_feed_from_event(
+    async def update_user_feed_from_event(
         self, schema: ServiceEvent, user_utils: UserUtils, ts_ms: int, celebrity_feed_topic: str
     ):
         self.calls.append(

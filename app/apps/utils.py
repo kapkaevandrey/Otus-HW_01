@@ -9,7 +9,7 @@ def collect_error_data_from_service_response(response: BaseServiceResponse) -> d
         return None
     return {
         "error": {
-            "code": response.code,
+            "code": response.status,
             "message": response.error_message,
             "details": response.error_details,
         }

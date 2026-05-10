@@ -88,6 +88,12 @@ class SocketConnectionManager:
     def get_session_id(self, user_id: USER_ID) -> int | None:
         return self.active_connections_user_map.get(user_id, None)
 
+    def get_socket_for_session(self, user_id: USER_ID) -> ActiveWebSocket | None:
+        ws_id = self.active_connections_user_map.get(user_id, None)
+        if ws_id:
+            return self.active_connections.get(ws_id)
+        return None
+
     async def disconnect(
         self,
         websocket: WebSocket,

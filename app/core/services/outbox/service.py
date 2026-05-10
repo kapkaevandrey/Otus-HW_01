@@ -6,7 +6,7 @@ from app.core.repositories import UnitOfWork
 from app.core.services.base import BaseService, async_use_case
 from app.exceptions import BaseServiceError
 from app.schemas.dto import EventActionOutboxDto
-from app.schemas.services import BaseServiceResponse, PostForFriendsEventSchema
+from app.schemas.services import BaseServiceResponse, InboxWsMessage, PostForFriendsEventSchema
 
 
 class OutboxService(BaseService):
@@ -25,7 +25,7 @@ class OutboxService(BaseService):
             if not found_items:
                 await asyncio.sleep(delay)
             async with self.context.uow.transaction() as uow:
-                items = await uow.service_event_outbox_repo.get_by_attributes(
+                items = await uow.event_actions_repo.get_by_attributes(
                     order_fields=["created_at"], limit=1, lock=True, skip_locked=True
                 )
                 if not items:
@@ -36,7 +36,7 @@ class OutboxService(BaseService):
                 await self.processing_service_events(
                     event=items[0], service_name=service_name, topics_map=topics_map, uow=uow
                 )
-                await uow.service_event_outbox_repo.remove({"id": items[0].id})
+                await uow.event_actions_repo.remove({"id": items[0].id})
 
     @async_use_case()
     async def processing_service_events(
@@ -47,7 +47,7 @@ class OutboxService(BaseService):
             await self._processing_send_post_to_friends_event(
                 event=event,
                 service_name=service_name,
-                topics_map=topics_map[EventTypes.SEND_NEW_POST_FOR_FRIENDS],
+                topic=topics_map[EventTypes.SEND_NEW_POST_FOR_FRIENDS],
                 uow=uow,
             )
         else:
@@ -63,7 +63,21 @@ class OutboxService(BaseService):
     ) -> None:
         data = PostForFriendsEventSchema.model_validate(event.properties)
         post = await uow.user_publication_repo.get({"id": data.post_id})
-        message = {}
+        if not post:
+            raise BaseServiceError(status=HTTPStatus.NOT_FOUND, error_message=f"Post with id {data.post_id} not found")
+        message = InboxWsMessage(
+            send_to_user_id=str(data.consumer_id),
+            event_type=event.event_type,
+            payload={
+                "postId": str(post.id),
+                "postText": post.text,
+                "postLastUpdate": post.updated_at,
+                "author_user_id": str(post.user_id),
+            },
+        )
         await self.context.kafka_producer.send_message(
-            topic=topic, value=message, headers={"source": service_name}, key=post.id.hex
+            topic=topic,
+            value=message.model_dump(mode="json"),
+            headers={"source": service_name},
+            key=data.consumer_id.hex,
         )
