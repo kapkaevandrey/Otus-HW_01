@@ -1,12 +1,13 @@
 import datetime as dt
 import random as rnd
 from http import HTTPStatus
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from faker import Faker
 
+from app.core.enums import EventTypes
 from app.core.services import PostService, UserUtils
-from app.schemas.dto import UserFriendCreateSchema, UserPublicationCreateSchema
+from app.schemas.dto import UserCreateSchema, UserFriendCreateSchema, UserPublicationCreateSchema
 from app.schemas.services import (
     GetPostServiceResponseSchema,
     PostCreateServiceSchema,
@@ -23,7 +24,7 @@ async def test_add_post(context, faker: Faker, user_one):
     )
     assert service_response.is_success
     assert service_response.status == HTTPStatus.CREATED
-    assert uow.user_publication_repo.exists({"user_id": user_one.id})
+    assert await uow.user_publication_repo.exists({"user_id": user_one.id})
 
 
 async def test_add_post_user_not_found(context, faker: Faker):
@@ -164,3 +165,42 @@ async def test_get_post_not_found(context, faker: Faker):
     )
     assert service_response.is_success is False
     assert service_response.status == HTTPStatus.NOT_FOUND
+
+
+async def test_add_celebrity_post(context, faker: Faker, user_one):
+    uow = context.uow
+    friends_items = 100_000
+    post_data = PostCreateServiceSchema(text=faker.text())
+    service = PostService(context)
+    async with uow.transaction() as uow:
+        many_friends = await uow.user_repo.add_batch(
+            [
+                UserCreateSchema(
+                    first_name=uuid4().hex,
+                    second_name=uuid4().hex,
+                    biography=uuid4().hex,
+                    birthdate=dt.date(1990, 1, 1),
+                    password=uuid4().hex,
+                )
+                for _ in range(friends_items)
+            ]
+        )
+        await uow.user_friends_repo.add_batch(
+            [UserFriendCreateSchema(user_id=user.id, friend_id=user_one.id) for user in many_friends]
+        )
+
+    service_response = await service.create_post(
+        data=post_data, user_id=user_one.id, user_utils=UserUtils(), event_topic="topic"
+    )
+    assert service_response.is_success
+    assert service_response.status == HTTPStatus.CREATED
+    assert await uow.user_publication_repo.exists({"user_id": user_one.id})
+    assert await uow.event_actions_repo.count() == friends_items
+    events = await uow.event_actions_repo.get_by_attributes()
+    expected_consumer_ids = {friend.id for friend in many_friends}
+    actual_consumer_ids = set()
+    for event in events:
+        assert event.event_type == EventTypes.ADD_USER_PUBLICATION
+        assert event.properties["post_id"] == str(service_response.result.id)
+        actual_consumer_ids.add(UUID(str(event.properties["consumer_id"])))
+    assert actual_consumer_ids == expected_consumer_ids

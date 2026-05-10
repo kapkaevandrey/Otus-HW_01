@@ -29,6 +29,7 @@ class EventTypes(StrEnum):
     ADD_FRIEND = "add_new_friend"
     REMOVE_FRIEND = "remove_friend"
     ADD_USER_PUBLICATION = "add_user_publication"
+    SEND_NEW_POST_FOR_FRIENDS = "send_new_post_for_friends"
     UPDATE_USER_PUBLICATION = "update_user_publication"
     REMOVE_USER_PUBLICATION = "remove_user_publication"
 

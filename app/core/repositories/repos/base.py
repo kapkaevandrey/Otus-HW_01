@@ -124,7 +124,11 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         order_fields: list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
+        locked: bool = False,
+        skip_locked: bool = False,
     ) -> list[DtoSchemaType]:
+        if skip_locked and not locked:
+            raise ValueError("skip_locked can be used only together with locked=True")
         _where = where or {}
         _order_fields = order_fields or []
         _joins = joins or []
@@ -149,6 +153,10 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             stmt = stmt + f" LIMIT {limit} "
         if offset:
             stmt = stmt + f" OFFSET {offset} "
+        if locked:
+            stmt = stmt + " FOR UPDATE "
+            if skip_locked:
+                stmt = stmt + " SKIP LOCKED "
         stmt = stmt.strip()
         result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params})
         return [self.dto_schema.model_validate(row) for row in result]
@@ -191,8 +199,10 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params}, mapped=mapped)
         return list(result)
 
-    async def get(self, pk_data: dict[str, Any]) -> DtoSchemaType | None:
-        results = await self.get_by_attributes(where=pk_data, limit=2)
+    async def get(
+        self, pk_data: dict[str, Any], locked: bool = False, skip_locked: bool = False
+    ) -> DtoSchemaType | None:
+        results = await self.get_by_attributes(where=pk_data, limit=2, locked=locked, skip_locked=skip_locked)
         if len(results) > 1:
             raise DatabaseMultiplyResultError(f"More than one result found - {results}")
         return self.dto_schema.model_validate(results[0]) if results else None

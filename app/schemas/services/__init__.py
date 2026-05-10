@@ -1,7 +1,7 @@
 from .auth import AuthCheckTokenData, AuthTokenInfo, UserTokenData
 from .base import BaseServiceResponse
 from .dialogs import SendMessageServiceResponse, SendMessageServiceSchema
-from .events import ServiceEvent
+from .events import PostForFriendsEventSchema, ServiceEvent
 from .post import (
     BigCacheFeedRecalculateEvent,
     CachedFeedPostsSchema,
@@ -44,4 +44,5 @@ __all__ = [
     "SendMessageServiceResponse",
     "BigCacheFeedRecalculateEvent",
     "AsyncChannelQueue",
+    "PostForFriendsEventSchema",
 ]

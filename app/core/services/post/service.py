@@ -48,6 +48,9 @@ class PostService(BaseService):
             post = await uow.user_publication_repo.add(
                 UserPublicationCreateSchema(text=data.text, is_draft=False, user_id=user.id)
             )
+            await uow.event_actions_repo.create_send_post_to_all_consumers_events(
+                post_id=post.id, author_id=post.user_id
+            )
             response.result = GetPostServiceResponseSchema(**post.model_dump())
             event = ServiceEvent(event_type=EventTypes.ADD_USER_PUBLICATION, data=post.model_dump())
             await self.context.kafka_producer.send_message(

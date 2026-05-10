@@ -24,7 +24,7 @@ class FeedConsumer(BaseKafkaConsumer):
         schema, ts_ms = self.try_get_message_schema(message.value), message.timestamp
         if not schema or schema.event_type not in self.post_service.RECALCULATE_CACHE_EVENTS:
             return
-        service_response = await self.post_service.update_user_feed_from_event(
+        service_response = await self.post_service.recalculate_user_feed_from_event(
             schema=schema,
             ts_ms=ts_ms,
             user_utils=UserUtils(),
