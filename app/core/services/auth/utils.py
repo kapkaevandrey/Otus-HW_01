@@ -54,7 +54,7 @@ class AuthUtils(ServiceUtils):
             "sub": str(user_id),
             "scope": ScopeType.ACCESS,
             "exp": access_exp,
-            "iat": dt.datetime.now(),
+            "iat": now,
         }
         access_token = jwt.encode(payload=jwt_data, key=settings.JWT_PRIVATE_KEY, algorithm=settings.JWT_ALG)
         jwt_data["exp"] = refresh_exp

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -147,3 +148,12 @@ async def client(context):
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def ws_client(context) -> TestClient:
+    def _get_context():
+        return context
+
+    app.dependency_overrides[get_context] = _get_context
+    return TestClient(app=app)
