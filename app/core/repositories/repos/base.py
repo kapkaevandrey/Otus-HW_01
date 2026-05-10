@@ -94,7 +94,12 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         stmt = f"SELECT COUNT(*) AS {key} FROM {self._table}"
         if where_string:
             stmt += f" WHERE {where_string}"
-        result = await self.db_client.execute_stmt(stmt, params=query_params, only_one=True)
+        result = await self.db_client.execute_stmt(
+            stmt,
+            params=query_params,
+            only_one=True,
+            external_session=self._session,
+        )
         return result[key]
 
     async def exists(
@@ -114,6 +119,7 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             stmt,
             params=query_params,
             only_one=True,
+            external_session=self._session,
         )
         return bool(result["exists"])
 
@@ -158,7 +164,11 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             if skip_locked:
                 stmt = stmt + " SKIP LOCKED "
         stmt = stmt.strip()
-        result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params})
+        result = await self.db_client.execute_stmt(
+            stmt,
+            {**where, **join_where_params},
+            external_session=self._session,
+        )
         return [self.dto_schema.model_validate(row) for row in result]
 
     async def get_need_fields(
@@ -196,7 +206,12 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         if offset:
             stmt = stmt + f" OFFSET {offset} "
         stmt = stmt.strip()
-        result = await self.db_client.execute_stmt(stmt, {**where, **join_where_params}, mapped=mapped)
+        result = await self.db_client.execute_stmt(
+            stmt,
+            {**where, **join_where_params},
+            mapped=mapped,
+            external_session=self._session,
+        )
         return list(result)
 
     async def get(self, pk_data: dict[str, Any], lock: bool = False, skip_locked: bool = False) -> DtoSchemaType | None:
