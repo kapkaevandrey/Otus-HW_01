@@ -36,6 +36,8 @@ services:
         condition: service_completed_successfully
       valkey:
         condition: service_started
+      redis-script-loader:
+        condition: service_completed_successfully
       kafka:
         condition: service_started
 
@@ -201,6 +203,25 @@ services:
     command: ["valkey-server", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
+
+  redis-script-loader:
+    image: dhi.io/valkey:9
+    restart: "no"
+    depends_on:
+      valkey:
+        condition: service_started
+    volumes:
+      - ./app/scripts/redis:/lua/redis:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        echo "Loading Redis Lua scripts..."
+        for f in /lua/redis/*.lua; do
+          valkey-cli -h redis SCRIPT LOAD "$$(cat "$$f")" >/dev/null
+          echo "Loaded $$f"
+        done
+        echo "Redis Lua scripts loaded."
 
   kafka:
     image: dhi.io/kafka:4.1-native

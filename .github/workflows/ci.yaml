@@ -83,6 +83,26 @@ jobs:
     - name: Install dependencies with uv
       run: |
         uv sync --frozen --group dev
+    - name: Verify Redis scripts exist
+      run: |
+        ls -la app/scripts/redis
+        test -f app/scripts/redis/send_message_to_user.lua
+        test -f app/scripts/redis/get_dialog_with_users.lua
+    - name: Load Redis scripts
+      run: |
+        uv run python - <<'PY'
+        from pathlib import Path
+        import redis
+
+        client = redis.Redis(host="localhost", port=6379, db=1)
+        scripts = [
+            Path("app/scripts/redis/send_message_to_user.lua"),
+            Path("app/scripts/redis/get_dialog_with_users.lua"),
+        ]
+        for script_path in scripts:
+            sha = client.script_load(script_path.read_text(encoding="utf-8"))
+            print(f"Loaded {script_path} -> {sha}")
+        PY
     - name: Run tests
       run: |
         uv run pytest --cov=app --cov-report=xml

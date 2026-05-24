@@ -7,6 +7,8 @@ from sqlalchemy import URL
 
 
 BASE_DIR = Path(__file__).resolve().parent
+SCRIPTS_PATH = BASE_DIR / "scripts"
+REDIS_SCRIPTS_PATH = SCRIPTS_PATH / "redis"
 
 
 class EmptyBaseSettings(BaseSettings):
