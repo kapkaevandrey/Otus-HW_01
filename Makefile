@@ -27,6 +27,10 @@ run_load_read_test_infra_db_replicas: down
 	uv run test_infra/scripts/generate_users.py
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
 
+run_load_dialog_test_single_db: down
+	docker-compose -f test_infra/docker-compose.yaml -p test_load_dialogs up -d
+	docker-compose -f test_infra/docker-compose.yaml -p test_load_dialogs run --rm -p 5665:5665 k6 run /scripts/load_dialogs.js
+
 start_db_replicas_infra: down
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db up -d
 	docker stop replica_pg_1 replica_pg_2

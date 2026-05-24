@@ -39,3 +39,20 @@ def async_use_case(
         return wrapper
 
     return decorator
+
+
+def sync_use_case(
+    return_response: BaseServiceResponse | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., BaseServiceResponse]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., BaseServiceResponse]:
+        def wrapper(*args: Any, **kwargs: Any) -> BaseServiceResponse:
+            base_response = return_response or BaseServiceResponse()
+            try:
+                return func(*args, **kwargs)
+            except BaseServiceError as e:
+                base_response.set_unsuccessful_from_error(e)
+            return base_response
+
+        return wrapper
+
+    return decorator
