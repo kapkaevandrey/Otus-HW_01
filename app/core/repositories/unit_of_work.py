@@ -43,13 +43,6 @@ class UnitOfWork:
         self._user_publication_repo = UserPublicationRepo(
             db_client=db_client, table=Tables.users_publications, dto_schema=UserPublicationDto
         )
-        self._conversation_repo = ConversationRepo(
-            db_client=db_client, table=Tables.conversations, dto_schema=ConversationDto
-        )
-        self._conversation_participants_repo = ConversationParticipantsRepo(
-            db_client=db_client, table=Tables.conversation_participants, dto_schema=ConversationParticipantsDto
-        )
-        self._message_repo = MessageRepo(db_client=db_client, table=Tables.messages, dto_schema=MessageDto)
         self._event_actions_repo = EventActionOutboxRepo(
             db_client=db_client, table=Tables.events_outbox, dto_schema=EventActionOutboxDto
         )
@@ -60,9 +53,6 @@ class UnitOfWork:
             self._user_repo,
             self._user_friends_repo,
             self._user_publication_repo,
-            self._conversation_repo,
-            self._conversation_participants_repo,
-            self._message_repo,
             self._event_actions_repo,
         ]
 
@@ -77,18 +67,6 @@ class UnitOfWork:
     @property
     def user_publication_repo(self) -> UserPublicationRepo:
         return self._user_publication_repo
-
-    @property
-    def message_repo(self) -> MessageRepo:
-        return self._message_repo
-
-    @property
-    def conversation_repo(self) -> ConversationRepo:
-        return self._conversation_repo
-
-    @property
-    def conversation_participants_repo(self) -> ConversationParticipantsRepo:
-        return self._conversation_participants_repo
 
     @property
     def event_actions_repo(self) -> EventActionOutboxRepo:

@@ -127,6 +127,8 @@ services:
   k6:
     image: grafana/k6:latest
     container_name: k6
+    networks:
+      - infra
     ports:
       - "5665:5665"
     volumes:

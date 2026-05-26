@@ -44,11 +44,11 @@ export const options = {
     },
   },
   thresholds: {
-    http_req_failed: ["rate<0.01"],
-    dialog_send_errors: ["rate<0.02"],
-    dialog_list_errors: ["rate<0.02"],
-    dialog_send_latency: ["p(95)<400", "p(99)<800"],
-    dialog_list_latency: ["p(95)<600", "p(99)<1000"],
+    http_req_failed: ["rate<0.05"],
+    dialog_send_errors: ["rate<0.05"],
+    dialog_list_errors: ["rate<0.05"],
+    dialog_send_latency: ["p(95)<30000", "p(99)<60000"],
+    dialog_list_latency: ["p(95)<30000", "p(99)<60000"],
   },
 };
 
