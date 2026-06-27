@@ -111,7 +111,5 @@ async def test_chat_service_client_send_message():
 
     assert call_kwargs["headers"][REQUEST_ID_HEADER] == "req-1"
     assert call_kwargs["json"] == {"text": "hello"}
-
-    parsed = client.parse_send_message(response)
-    assert parsed.message_id == message_id
-    assert parsed.conversation_type == "direct"
+    assert response.json_data["message_id"] == str(message_id)
+    assert response.json_data["conversation_type"] == "direct"

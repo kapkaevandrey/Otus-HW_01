@@ -78,10 +78,17 @@ class InMemoryChatServiceClient:
         pair = self._pair_key(sender_id, user_id)
         messages = self._messages.get(pair)
         if not messages:
-            raise BaseClientError(
-                error_message="Dialog not exists",
-                client_name=self.CLIENT_NAME,
+            return HttpClientResponse(
+                request=HttpClientRequest(
+                    url=f"/api/v1/dialog/{user_id}/list",
+                    method="GET",
+                    headers=self._build_headers(authorization, request_id),
+                ),
                 status=HTTPStatus.NOT_FOUND,
+                is_success=False,
+                is_json=True,
+                json_data={"detail": {"message": "Dialog not exists", "details": {}}},
+                headers={"content-type": "application/json"},
             )
 
         return self._success_response(
@@ -91,18 +98,6 @@ class InMemoryChatServiceClient:
             request_id=request_id,
             json_data=sorted(messages, key=lambda item: item["sent_at"], reverse=True),
         )
-
-    @staticmethod
-    def parse_send_message(response: HttpClientResponse):
-        from app.schemas.services.dialogs import SendMessageServiceResponse
-
-        return SendMessageServiceResponse.model_validate(response.json_data)
-
-    @staticmethod
-    def parse_dialog_list(response: HttpClientResponse):
-        from app.schemas.services.dialogs import DirectMessagesItem
-
-        return [DirectMessagesItem.model_validate(item) for item in response.json_data or []]
 
     @staticmethod
     def _extract_user_id(authorization: str) -> UUID:

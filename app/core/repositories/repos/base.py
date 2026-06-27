@@ -308,7 +308,7 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             raise RuntimeError("save outbox can run only in transaction mode")
         query = f"""
             INSERT INTO {self._outbox_table} (action, data)
-            VALUES (:action, :data::jsonb)
+            VALUES (:action, CAST(:data AS JSONB))
         """
         await self.db_client.execute_stmt(
             query,

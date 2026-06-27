@@ -53,6 +53,7 @@ class BaseHttpClient:
         params: dict[str, Any] | None = None,
         json: Any | None = None,
         headers: dict[str, str] | None = None,
+        raise_on_error: bool | None = None,
         **kwargs: Any,
     ) -> HttpClientResponse:
         merged_headers = {**self._default_headers, **(headers or {})}
@@ -84,7 +85,8 @@ class BaseHttpClient:
             ) from exc
 
         response = self._build_response(httpx_response, request_meta)
-        if self._raise_on_error and not response.is_success:
+        should_raise = self._raise_on_error if raise_on_error is None else raise_on_error
+        if should_raise and not response.is_success:
             raise self._error_from_response(response)
         return response
 
