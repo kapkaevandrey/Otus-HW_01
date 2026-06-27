@@ -1,58 +1,31 @@
-# Otus-HW_01
-## Инструкция по запуску
-### 
-## Инструкция по запуску
+# Otus-HW_01 — социальная сеть (монолит)
 
-### Для запуска используйте утилиту make
-```shell
-make run
-```
-После запуска swagger локально доступен http://127.0.0.1:8000/docs
+## Для проверяющего
 
-### Очистка контейнеров
+**Полный отчёт, архитектура и пошаговый запуск:** [docs/REVIEW.md](docs/REVIEW.md)
+
+Кратко: поднять монолит → поднять infra chat-service → запустить chat-service локально на `:8001` → проверить регистрацию, sync, API диалогов (монолит и chat).
+
+## Быстрый старт
+
 ```shell
-make down
+WORKERS=1 docker compose up -d --scale worker=1 --scale app-instance=0
 ```
 
-### Полный список команд
+Swagger: http://127.0.0.1:8000/docs
+
 ```shell
-make help 
+make down   # остановка
+make help   # все команды
 ```
 
-### Документация и коллекция Postman находиться в директории docs
+Postman-коллекция: `docs/postman/Otus_socal.postman_collection.json`
 
-## WebSocket подключение
-
-Канал обновлений ленты постов:
+## WebSocket (лента постов)
 
 - URL: `ws://127.0.0.1:8000/post/feed/posted`
-- Авторизация: заголовок `Authorization: Bearer <access_token>`
-- Токен можно получить через REST `POST /login`
-
-### Пример подключения через Node.js (`ws`)
-
-```javascript
-import WebSocket from "ws";
-
-const ws = new WebSocket("ws://127.0.0.1:8000/post/feed/posted", {
-  headers: {
-    Authorization: "Bearer <access_token>",
-  },
-});
-
-ws.onopen = () => console.log("ws connected");
-ws.onmessage = (event) => console.log("message:", event.data);
-ws.onclose = (event) => console.log("ws closed:", event.code, event.reason);
-ws.onerror = (error) => console.error("ws error:", error);
-```
-
-### Пример подключения через wscat
+- Auth: `Authorization: Bearer <access_token.token>`
 
 ```shell
-wscat -c ws://127.0.0.1:8000/post/feed/posted -H "Authorization: Bearer <access_token>"
+wscat -c ws://127.0.0.1:8000/post/feed/posted -H "Authorization: Bearer <token>"
 ```
-
-После подключения сервер отправляет json-сообщения о новых постах друзей.
-
-> В браузерном `WebSocket` нельзя передать `Authorization` header напрямую.
-

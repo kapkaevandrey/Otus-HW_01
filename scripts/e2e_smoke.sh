@@ -13,7 +13,7 @@ fail() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 wait_http() {
   local url=$1 name=$2
   for _ in $(seq 1 60); do
-    if curl -sf "$url/api/ping" >/dev/null 2>&1; then
+    if curl -sf "$url/healthz" >/dev/null 2>&1; then
       log "$name is up: $url"
       return 0
     fi
