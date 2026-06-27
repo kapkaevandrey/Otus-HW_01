@@ -39,6 +39,19 @@ async def test_send_message_to_self_api(client: AsyncClient, user_one):
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+async def test_dialog_response_contains_request_id(client: AsyncClient, user_one, user_two):
+    from app.core.request_context import REQUEST_ID_HEADER
+
+    url = app.url_path_for("send_message_to_user", user_id=str(user_two.id))
+    response = await client.post(
+        url,
+        json={"text": "hello"},
+        headers={**get_access_headers(user_one.id), REQUEST_ID_HEADER: "trace-123"},
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers.get(REQUEST_ID_HEADER) == "trace-123"
+
+
 async def test_get_users_dialog_api(client: AsyncClient, user_one, user_two):
     send_url = app.url_path_for("send_message_to_user", user_id=str(user_two.id))
     await client.post(

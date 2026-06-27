@@ -17,6 +17,7 @@ from app.core.clients import RedisClient, SQLAlchemyAsyncPgClient
 from app.core.clients.ws import SocketConnectionManager
 from app.core.containers.context import Context, get_context
 from app.server import app
+from tests.fixtures.chat_service import InMemoryChatServiceClient
 
 
 pytest_plugins = ["tests.fixtures.instances", "tests.fixtures.mock_objects", "tests.fixtures.factories"]
@@ -134,6 +135,7 @@ async def context(db_client: SQLAlchemyAsyncPgClient, kafka_producer_mock_client
         kafka_producer=kafka_producer_mock_client,
         redis_client=redis_client,
         socket_manager=SocketConnectionManager(),
+        chat_service_client=InMemoryChatServiceClient(),
     )
 
     return context

@@ -1,11 +1,13 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.apps.api.auth import get_user_data_access
 from app.apps.utils import raise_http_exception_from_service_response
+from app.config import auth_settings
 from app.core.containers import Context, get_context
+from app.core.request_context import get_request_id
 from app.core.services import DialogService, UserUtils
 from app.schemas.api import SendMessageSchema
 from app.schemas.services import SendMessageServiceResponse, SendMessageServiceSchema, UserTokenData
@@ -22,6 +24,7 @@ dialog_router = APIRouter(prefix="/dialog", tags=["Dialogs"])
 async def send_message_to_user(
     user_id: UUID,
     data: SendMessageSchema,
+    request: Request,
     user_data: UserTokenData = Depends(get_user_data_access),
     context: Context = Depends(get_context),
 ) -> SendMessageServiceResponse:
@@ -29,6 +32,8 @@ async def send_message_to_user(
     service_response = await service.send_message_to_user(
         data=SendMessageServiceSchema(text=data.text, user_sender=user_data.sub, user_receiver=user_id),
         user_utils=UserUtils(),
+        authorization=request.headers[auth_settings.AUTH_HEADER_KEY],
+        request_id=get_request_id(),
     )
     raise_http_exception_from_service_response(service_response)
     return service_response.result
@@ -40,6 +45,7 @@ async def send_message_to_user(
 )
 async def get_users_dialog(
     user_id: UUID,
+    request: Request,
     user_data: UserTokenData = Depends(get_user_data_access),
     context: Context = Depends(get_context),
 ) -> list[DirectMessagesItem]:
@@ -47,6 +53,8 @@ async def get_users_dialog(
     service_response = await service.get_dialog_with_users(
         user_first=user_data.sub,
         user_second=user_id,
+        authorization=request.headers[auth_settings.AUTH_HEADER_KEY],
+        request_id=get_request_id(),
     )
     raise_http_exception_from_service_response(service_response)
     return service_response.result

@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.apps.api import main_router
 from app.apps.consumers import CelebrityFeedConsumer, FeedConsumer, WsMessagesConsumer
+from app.apps.middleware.request_id import RequestIdMiddleware
 from app.apps.ws import ws_router
 from app.config import app_settings, kafka_settings
 from app.core.containers import get_context
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 def setup_middlewares(application: FastAPI) -> None:
     logger.debug("Setup middlewares")
+    application.add_middleware(RequestIdMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.allow_origins_list,

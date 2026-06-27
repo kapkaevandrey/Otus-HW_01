@@ -26,6 +26,7 @@ services:
       DB_DATABASE: app_db
       KAFKA_BROKERS: kafka:9093
       REDIS_HOST: redis
+      CHAT_SERVICE_URL: http://host.docker.internal:8001
     ports:
       - "8000:8000"
     env_file:
@@ -53,6 +54,7 @@ services:
       DB_DATABASE: app_db
       KAFKA_BROKERS: kafka:9093
       REDIS_HOST: redis
+      CHAT_SERVICE_URL: http://host.docker.internal:8001
     env_file:
       - dev.env
     command: [ "api", "8000" ]

@@ -119,8 +119,14 @@ class DbSettings(EmptyBaseSettings):
         return result
 
 
+class ChatServiceSettings(EmptyBaseSettings):
+    CHAT_SERVICE_URL: str = "http://localhost:8001"
+    CHAT_SERVICE_TIMEOUT: float = 30.0
+
+
 app_settings = AppSettings()
 auth_settings = AuthSettings()
 db_settings = DbSettings()
 redis_settings = RedisSettings()
 kafka_settings = KafkaSettings()
+chat_settings = ChatServiceSettings()

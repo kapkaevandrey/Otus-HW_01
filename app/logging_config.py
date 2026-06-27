@@ -20,11 +20,21 @@ class IgnoreExcludedPathsFilter(logging.Filter):
     excluded_log_paths = {
         "GET /metrics",
         "GET /healthz",
+        "GET /livez",
     }
 
     def filter(self, record):
         message = record.getMessage()
         return not any(path in message for path in self.excluded_log_paths)
+
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        from app.core.request_context import get_request_id
+
+        if request_id := get_request_id():
+            record.request_id = request_id
+        return True
 
 
 class IsoMsOrjsonFormatter(OrjsonFormatter):
@@ -38,7 +48,7 @@ LOGGING_DICT: dict[str, Any] = {
     "formatters": {
         "json": {
             "()": "app.logging_config.IsoMsOrjsonFormatter",
-            "format": "%(status_code)s %(path)s %(levelname)s %(asctime)s %(name)s %(message)s",
+            "format": "%(status_code)s %(path)s %(levelname)s %(asctime)s %(name)s %(message)s %(request_id)s",
         },
         "simple": {
             "()": "logging.Formatter",
@@ -52,11 +62,14 @@ LOGGING_DICT: dict[str, Any] = {
         "json_body": {
             "()": JsonBodyFilter,
         },
+        "request_id": {
+            "()": RequestIdFilter,
+        },
     },
     "handlers": {
         "console": {
             "formatter": "json",
-            "filters": ["ignore_excluded_paths", "json_body"],
+            "filters": ["ignore_excluded_paths", "json_body", "request_id"],
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
         },
@@ -64,6 +77,7 @@ LOGGING_DICT: dict[str, Any] = {
             "formatter": "simple",
             "filters": [
                 "ignore_excluded_paths",
+                "request_id",
             ],
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",

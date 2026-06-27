@@ -10,10 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
 from app.core.enums import Tables
 from app.schemas.dto import (
-    ConversationDto,
-    ConversationParticipantsDto,
     EventActionOutboxDto,
-    MessageDto,
     UserDto,
     UserFriendDto,
     UserPublicationDto,
@@ -21,10 +18,7 @@ from app.schemas.dto import (
 
 from .repos import (
     BaseRepository,
-    ConversationParticipantsRepo,
-    ConversationRepo,
     EventActionOutboxRepo,
-    MessageRepo,
     UserFriendsRepo,
     UserPublicationRepo,
     UserRepo,

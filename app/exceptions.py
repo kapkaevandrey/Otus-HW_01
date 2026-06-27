@@ -25,6 +25,21 @@ class BaseServiceError(Exception):
         super().__init__()
 
 
+class BaseClientError(Exception):
+    def __init__(
+        self,
+        error_message: str | None,
+        client_name: str,
+        status: HTTPStatus | int = HTTPStatus.BAD_GATEWAY,
+        error_details: dict | None = None,
+    ):
+        self.error_details = error_details or {}
+        self.error_message = error_message
+        self.client_name = client_name
+        self.status = status
+        super().__init__()
+
+
 class DatabaseError(Exception):
     pass
 
