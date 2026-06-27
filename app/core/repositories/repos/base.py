@@ -2,11 +2,12 @@ import logging
 from collections import defaultdict
 from typing import Any, TypeVar
 
+import orjson
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clients.db import SQLAlchemyAsyncDbBaseClient
-from app.core.enums import StrEnum
+from app.core.enums import OutboxAction, StrEnum
 from app.exceptions import DatabaseInstanceNotFoundError, DatabaseMultiplyResultError
 from app.schemas.base import EmptyBaseSchema
 
@@ -77,11 +78,13 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
         dto_schema: type[DtoSchemaType],
         session: AsyncSession | None = None,
         logger: logging.Logger | None = None,
+        outbox_table: str | None = None,
     ):
         self.db_client = db_client
         self.dto_schema = dto_schema
         self._session = session
         self._table = table
+        self._outbox_table = outbox_table
         self._logger = logger or logging.getLogger(__name__)
 
     async def count(
@@ -297,6 +300,28 @@ class BaseRepository[DtoSchemaType: BaseModel, CreateSchemaType: BaseModel, Upda
             result = await self.db_client.execute_stmt(query, params=values, external_session=self._session)
             all_results.extend(result)
         return [self.dto_schema.model_validate(result) for result in all_results]
+
+    async def save_outbox(self, action: OutboxAction, data: dict[str, Any]) -> None:
+        if not self._outbox_table:
+            return None
+        if not self._session:
+            raise RuntimeError("save outbox can run only in transaction mode")
+        query = f"""
+            INSERT INTO {self._outbox_table} (action, data)
+            VALUES (:action, :data::jsonb)
+        """
+        await self.db_client.execute_stmt(
+            query,
+            params={"action": action, "data": orjson.dumps(data).decode()},
+            external_session=self._session,
+            need_result=False,
+        )
+        return None
+
+    async def prepare_outbox_data(self, dto: DtoSchemaType) -> dict[str, Any] | None:
+        if self._outbox_table is not None:
+            raise NotImplementedError("If you use outbox pattern for this model, please implement this method")
+        return None
 
     def collect_where_string(
         self, params: dict[str, Any], already_collected_params: dict[str, Any] | None = None

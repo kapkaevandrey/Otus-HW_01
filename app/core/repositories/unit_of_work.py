@@ -13,6 +13,7 @@ from app.schemas.dto import (
     EventActionOutboxDto,
     UserDto,
     UserFriendDto,
+    UserOutboxDto,
     UserPublicationDto,
 )
 
@@ -22,6 +23,7 @@ from .repos import (
     UserFriendsRepo,
     UserPublicationRepo,
     UserRepo,
+    UsersOutboxRepo,
 )
 
 
@@ -40,6 +42,9 @@ class UnitOfWork:
         self._event_actions_repo = EventActionOutboxRepo(
             db_client=db_client, table=Tables.events_outbox, dto_schema=EventActionOutboxDto
         )
+        self._users_outbox_repo = UsersOutboxRepo(
+            db_client=db_client, table=Tables.users_outbox, dto_schema=UserOutboxDto
+        )
 
     @property
     def repositories(self) -> list[BaseRepository]:
@@ -48,6 +53,7 @@ class UnitOfWork:
             self._user_friends_repo,
             self._user_publication_repo,
             self._event_actions_repo,
+            self._users_outbox_repo,
         ]
 
     @property
@@ -65,6 +71,10 @@ class UnitOfWork:
     @property
     def event_actions_repo(self) -> EventActionOutboxRepo:
         return self._event_actions_repo
+
+    @property
+    def users_outbox_repo(self) -> UsersOutboxRepo:
+        return self._users_outbox_repo
 
     @property
     def logger(self) -> Logger:

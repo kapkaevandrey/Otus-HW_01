@@ -1,6 +1,12 @@
 from enum import IntEnum, StrEnum
 
 
+class OutboxAction(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
 class UserType(StrEnum):
     USER = "user"
 
@@ -17,6 +23,7 @@ class ConversationTypes(StrEnum):
 
 class Tables(StrEnum):
     users = "users"
+    users_outbox = "users_outbox"
     users_friends = "users_friends"
     users_publications = "users_publications"
     conversations = "conversations"
@@ -32,6 +39,7 @@ class EventTypes(StrEnum):
     SEND_NEW_POST_FOR_FRIENDS = "send_new_post_for_friends"
     UPDATE_USER_PUBLICATION = "update_user_publication"
     REMOVE_USER_PUBLICATION = "remove_user_publication"
+    SYNC_USER = "sync_user"
 
 
 class WebSocketStatusCodes(IntEnum):

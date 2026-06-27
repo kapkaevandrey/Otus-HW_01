@@ -68,6 +68,7 @@ class KafkaSettings(EmptyBaseSettings):
     SERVICE_USER_PUBLICATION_TOPIC: str = "social.user_publications.events"
     SERVICE_FEED_CELEBRITY_TOPIC: str = "social.user_publications.celebrity_post"
     WS_SEND_MESSAGES_TOPIC: str = "social.ws.messages"
+    KAFKA_CUD_USER_EVENT_TOPIC: str = "cud.user"
 
 
 class DbSettings(EmptyBaseSettings):

@@ -16,7 +16,7 @@ from app.apps.ws import ws_router
 from app.config import app_settings, kafka_settings
 from app.core.containers import get_context
 from app.core.enums import EventTypes
-from app.core.services.tasks import processing_events_outbox_task
+from app.core.services.tasks import processing_events_outbox_task, processing_users_outbox_task
 from app.core.utils import restart_on_exception, run_tasks, shutdown
 from app.logging_config import configure_logging
 
@@ -109,12 +109,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             "topics_map": {EventTypes.SEND_NEW_POST_FOR_FRIENDS: kafka_settings.WS_SEND_MESSAGES_TOPIC},
         },
     )
+    processing_users_task = restart_on_exception(
+        processing_users_outbox_task,
+        run_params={
+            "context": context,
+            "service_name": app_settings.SERVICE_NAME,
+            "topic": kafka_settings.KAFKA_CUD_USER_EVENT_TOPIC,
+        },
+    )
     await context.start_clients()
     tasks = [
         restart_on_exception(feed_consumer.run),
         restart_on_exception(celebrity_feed_consumer.run),
         restart_on_exception(ws_messages_consumer.run),
         processing_event_task,
+        processing_users_task,
     ]
     run_tasks(tasks)
     yield

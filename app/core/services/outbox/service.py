@@ -5,7 +5,7 @@ from app.core.enums import EventTypes
 from app.core.repositories import UnitOfWork
 from app.core.services.base import BaseService, async_use_case
 from app.exceptions import BaseServiceError
-from app.schemas.dto import EventActionOutboxDto
+from app.schemas.dto import EventActionOutboxDto, UserOutboxDto
 from app.schemas.services import BaseServiceResponse, InboxWsMessage, PostForFriendsEventSchema
 
 
@@ -37,6 +37,34 @@ class OutboxService(BaseService):
                     event=items[0], service_name=service_name, topics_map=topics_map, uow=uow
                 )
                 await uow.event_actions_repo.remove({"id": items[0].id})
+
+    async def processing_users_outbox_task(
+        self,
+        *,
+        service_name: str,
+        topic: str,
+        delay: float | None = None,
+    ) -> None:
+        found_items = True
+        delay = delay or self.DEFAULT_DELAY
+        while True:
+            if not found_items:
+                await asyncio.sleep(delay)
+            async with self.context.uow.transaction() as uow:
+                items = await uow.users_outbox_repo.get_by_attributes(
+                    order_fields=["created_at"], limit=1, lock=True, skip_locked=True
+                )
+                if not items:
+                    self.logger.debug(f"No user outbox events found, sleep for {delay} seconds.")
+                    found_items = False
+                    continue
+                found_items = True
+                await self._processing_user_event(
+                    event=items[0],
+                    service_name=service_name,
+                    topic=topic,
+                )
+                await uow.users_outbox_repo.remove({"id": items[0].id})
 
     @async_use_case()
     async def processing_service_events(
@@ -80,4 +108,24 @@ class OutboxService(BaseService):
             value=message.model_dump(mode="json"),
             headers={"source": service_name},
             key=data.consumer_id.hex,
+        )
+
+    async def _processing_user_event(
+        self,
+        event: UserOutboxDto,
+        service_name: str,
+        topic: str,
+    ) -> None:
+        user_id = event.data.get("id")
+        if not user_id:
+            raise BaseServiceError(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                error_message="User outbox event has no user id",
+                error_details=event.model_dump(mode="json"),
+            )
+        await self.context.kafka_producer.send_message(
+            topic=topic,
+            value={"action": event.action, "data": event.data},
+            headers={"source": service_name},
+            key=str(user_id).replace("-", ""),
         )

@@ -21,3 +21,18 @@ async def processing_events_outbox_task(
         topics_map=topics_map,
         delay=delay,
     )
+
+
+async def processing_users_outbox_task(
+    context: Context,
+    service_name: str,
+    topic: str,
+    delay: float | None = None,
+) -> None:
+    logger.info("Starting processing users outbox task")
+    service = OutboxService(context)
+    await service.processing_users_outbox_task(
+        service_name=service_name,
+        topic=topic,
+        delay=delay,
+    )
