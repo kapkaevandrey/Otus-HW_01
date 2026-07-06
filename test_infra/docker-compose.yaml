@@ -6,79 +6,152 @@ x-patroni-common: &patroni-common
     - infra
   environment:
     PATRONI_SCOPE: app_cluster
-    PATRONI_NAME: ${PATRONI_NAME}
-    PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
-    PATRONI_POSTGRESQL_CONNECT_ADDRESS: ${PATRONI_NAME}:5432
-    PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
-    PATRONI_RESTAPI_CONNECT_ADDRESS: ${PATRONI_NAME}:8008
-    PATRONI_ETCD_HOST: etcd:2379
     POSTGRES_PASSWORD: app_pswd
     POSTGRES_DB: app_db
-  command: patroni /etc/patroni.yml
   depends_on:
-    - etcd
+    etcd:
+      condition: service_healthy
 
+x-app-common: &app-common
+  build:
+    context: ..
+    dockerfile: Dockerfile
+    target: dev
+  restart: always
+  environment:
+    ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030,http://localhost:8000"
+    DB_MASTER_HOST: haproxy
+    DB_REPLICAS: "haproxy:5433"
+    REDIS_HOST: redis
+    KAFKA_BROKERS: kafka:9093
+  env_file:
+    - ../dev.env
+  command: ["api", "8000"]
+  expose:
+    - "8000"
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    haproxy:
+      condition: service_healthy
+    valkey:
+      condition: service_started
+    kafka:
+      condition: service_started
+  networks:
+    - infra
 
 services:
-  app:
-    container_name: app
+  migrate:
     build:
       context: ..
       dockerfile: Dockerfile
       target: dev
-    restart: always
+    restart: "no"
     environment:
-      ALLOW_ORIGINS: "http://localhost:3030,http://0.0.0.0:3030,http://0.0.0.0:8000"
       DB_MASTER_HOST: haproxy
-      REDIS_HOST: redis
-    ports:
-      - "8000:8000"
     env_file:
       - ../dev.env
-    command:
-      ["start", "8000"]
+    command: ["init"]
     depends_on:
-      haproxy:
-        condition: service_healthy
-      valkey:
-        condition: service_started
-      redis-script-loader:
+      pg-ready:
         condition: service_completed_successfully
     networks:
       - infra
 
+  pg-ready:
+    image: postgres:17-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: app_pswd
+    depends_on:
+      haproxy:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        echo "Waiting for PostgreSQL master via HAProxy..."
+        for i in $$(seq 1 60); do
+          if pg_isready -h haproxy -p 5432 -U postgres -d app_db >/dev/null 2>&1; then
+            echo "PostgreSQL master is ready"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "PostgreSQL master is not ready"
+        exit 1
+    networks:
+      - infra
+
+  app:
+    <<: *app-common
+
+  nginx:
+    image: nginx:1.27-alpine
+    hostname: nginx
+    container_name: nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - infra
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   patroni1:
     <<: *patroni-common
     container_name: patroni1
-    environment:
-      PATRONI_NAME: patroni1
     volumes:
-      - ./patroni/patroni1.yaml:/etc/patroni.yml
+      - ./patroni/patroni1.yaml:/etc/patroni.yml:ro
       - pgdata1:/var/lib/postgresql:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8008/master >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
 
   patroni2:
     <<: *patroni-common
     container_name: patroni2
-    environment:
-      PATRONI_NAME: patroni2
     volumes:
       - ./patroni/patroni2.yaml:/etc/patroni.yml:ro
       - pgdata2:/var/lib/postgresql:rw
     depends_on:
       patroni1:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8008/replica >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 60s
 
   patroni3:
     <<: *patroni-common
     container_name: patroni3
-    environment:
-      PATRONI_NAME: patroni3
     volumes:
       - ./patroni/patroni3.yaml:/etc/patroni.yml:ro
       - pgdata3:/var/lib/postgresql:rw
     depends_on:
       patroni1:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8008/replica >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 60s
 
   etcd:
     image: quay.io/coreos/etcd:v3.5.15
@@ -96,10 +169,11 @@ services:
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: patroni
     healthcheck:
-      test: ["CMD-SHELL", "etcdctl endpoint health --endpoints=http://localhost:2379"]
+      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   haproxy:
     image: haproxy:2.9-alpine
@@ -107,26 +181,27 @@ services:
     container_name: haproxy
     ports:
       - "5432:5432"
+      - "5433:5433"
+      - "8404:8404"
     networks:
       - infra
     volumes:
       - ./patroni/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     healthcheck:
-      test: [ "CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg" ]
-      interval: 10s
+      test: ["CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+      interval: 5s
       timeout: 5s
-      retries: 3
+      retries: 12
+      start_period: 10s
     depends_on:
       patroni1:
-        condition: service_started
-      patroni2:
-        condition: service_started
-      patroni3:
-        condition: service_started
+        condition: service_healthy
 
   k6:
     image: grafana/k6:latest
     container_name: k6
+    profiles:
+      - loadtest
     networks:
       - infra
     ports:
@@ -148,27 +223,6 @@ services:
     command: ["valkey-server", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
-
-  redis-script-loader:
-    image: dhi.io/valkey:9
-    restart: "no"
-    networks:
-      - infra
-    depends_on:
-      valkey:
-        condition: service_started
-    volumes:
-      - ../app/scripts/redis:/lua/redis:ro
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        echo "Loading Redis Lua scripts..."
-        for f in /lua/redis/*.lua; do
-          valkey-cli -h redis SCRIPT LOAD "$$(cat "$$f")" >/dev/null
-          echo "Loaded $$f"
-        done
-        echo "Redis Lua scripts loaded."
 
   kafka:
     image: dhi.io/kafka:4.1-native
@@ -193,11 +247,12 @@ services:
       KAFKA_NUM_PARTITIONS: 50
     volumes:
       - kafka_data:/var/lib/kafka/data
-      - /var/run/docker.sock:/var/run/docker.sock
 
   kafka-ui:
     container_name: kafka-ui
     image: provectuslabs/kafka-ui:latest
+    profiles:
+      - debug
     networks:
       - infra
     ports:

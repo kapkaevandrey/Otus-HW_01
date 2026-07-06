@@ -43,7 +43,7 @@ async def main():
     conn = await asyncpg.connect(**DB_CONFIG)
 
     print("Cleaning TABLE...")
-    await conn.execute(f"TRUNCATE {TABLE_NAME} RESTART IDENTITY;")
+    await conn.execute(f"TRUNCATE {TABLE_NAME} RESTART IDENTITY CASCADE;")
 
     print("Generating and inserting records...")
     batch = []

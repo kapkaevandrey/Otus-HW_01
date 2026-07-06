@@ -5,8 +5,9 @@
 .DEFAULT_GOAL := run_tests
 
 WORKERS ?= 3
-APP_INSTANCES ?=2
+APP_INSTANCES ?= 2
 PROJECT_NAME ?= dialogs
+INFRA_COMPOSE = docker-compose -f test_infra/docker-compose.yaml
 
 ## run:       start app in docker
 run:
@@ -14,22 +15,26 @@ run:
 
 ## run_load_test:       start app in docker with infra for testing
 run_load_test: down
-	docker-compose -f test_infra/docker-compose.yaml up
+	$(INFRA_COMPOSE) up --scale app=$(APP_INSTANCES)
+
+## run_hw_test: full homework scenario (infra, seed, verify, load + fault injection)
+run_hw_test:
+	bash test_infra/scripts/run_hw_test.sh
+
+## run_load_read_test:       10 min read load test against running infra
+run_load_read_test: 
+	$(INFRA_COMPOSE) --profile loadtest run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
 
 ## run_load_read_test:       start app in docker with infra for testing
 run_load_read_test_single_db: down
-	docker-compose -f test_infra/docker-compose.yaml -p test_load_infra up -d
+	$(INFRA_COMPOSE) -p test_load_infra up -d --scale app=$(APP_INSTANCES)
 	uv run test_infra/scripts/generate_users.py
-	docker-compose -f test_infra/docker-compose.yaml -p test_load_infra run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
+	$(INFRA_COMPOSE) -p test_load_infra --profile loadtest run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
 
 run_load_read_test_infra_db_replicas: down
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db up -d
 	uv run test_infra/scripts/generate_users.py
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db run --rm -p 5665:5665 k6 run /scripts/load_read_users.js
-
-run_load_dialog_test_single_db: down
-	docker-compose -f test_infra/docker-compose.yaml -p test_load_dialogs up -d
-	docker-compose -f test_infra/docker-compose.yaml -p test_load_dialogs run --rm -p 5665:5665 k6 run /scripts/load_dialogs.js
 
 start_db_replicas_infra: down
 	docker-compose -f test_infra/docker-compose.db-replica.yaml -p test_load_infra_db up -d
@@ -38,7 +43,7 @@ start_db_replicas_infra: down
 
 down:
 	PROJECT_NAME=$(PROJECT_NAME) docker-compose -p $(PROJECT_NAME) down --remove-orphans
-	docker-compose -f test_infra/docker-compose.yaml down --remove-orphans
+	$(INFRA_COMPOSE) down --remove-orphans
 
 
 ## pytest:    run pytest

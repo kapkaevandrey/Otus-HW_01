@@ -1,7 +1,9 @@
-import http from 'k6/http';
+    import http from 'k6/http';
 import { check } from 'k6';
 import { Trend, Rate, Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
+
+const BASE_URL = __ENV.BASE_URL || "http://nginx/api/v1";
 
 // кастомные метрики
 export const search_latency = new Trend('search_latency', true, { unit: 'ms' });
@@ -39,8 +41,8 @@ export const options = {
       preAllocatedVUs: 100,
       maxVUs: 500,
       stages: [
-        { target: 200, duration: '2m' },
-        { target: 200, duration: '10m' },
+        { target: 200, duration: '1m' },
+        { target: 200, duration: '8m' },
         { target: 0, duration: '1m' },
       ],
     },
@@ -48,13 +50,13 @@ export const options = {
     get_user: {
       executor: 'ramping-arrival-rate',
       exec: 'getUser',
-      startRate: 100, // обычно чтение чаще
+      startRate: 100,
       timeUnit: '1s',
       preAllocatedVUs: 200,
       maxVUs: 1500,
       stages: [
-        { target: 800, duration: '2m' },
-        { target: 800, duration: '10m' },
+        { target: 800, duration: '1m' },
+        { target: 800, duration: '8m' },
         { target: 0, duration: '30s' },
       ],
     },
@@ -72,8 +74,8 @@ export const options = {
 };
 
 export function searchUser () {
-  const { first, last } = pickSearch();
-  const url = `http://app:8000/api/v1/user/search?first_name=${encodeURIComponent(first)}&last_name=${encodeURIComponent(last)}`;
+  const pair = pickSearch();
+  const url = `${BASE_URL}/user/search?first_name=${encodeURIComponent(pair.first_name)}&last_name=${encodeURIComponent(pair.last_name)}`;
   const res = http.get(url, { responseType: 'none' });
   search_latency.add(res.timings.duration);
   if (res.status === 200) {
@@ -87,7 +89,7 @@ export function searchUser () {
 
 export function getUser () {
   const id = pick(USER_IDS);
-  const url = `http://app:8000/api/v1/user/get/${id}`;
+  const url = `${BASE_URL}/user/get/${id}`;
   const res = http.get(url, { responseType: 'none' });
   get_user_latency.add(res.timings.duration);
   if (res.status === 200) {
